@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tensix-bfp-gptq"
 version = "0.1.0"
-description = "BFP4/BFP8 (TT-NN bfloat4_b / bfloat8_b) weight rounding with GPTQ for Tenstorrent Tensix NPUs"
+description = "Quantize Hugging Face LLMs to TT-NN's BFP4/BFP8 formats (bfloat4_b, bfloat8_b) with GPTQ, for Tenstorrent Tensix NPUs"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]

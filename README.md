@@ -2,12 +2,12 @@
 
 # tensix-bfp-gptq
 
-**BFP4 and BFP8 weight rounding with GPTQ for Tenstorrent Tensix NPUs**
+**Quantize Hugging Face LLMs to TT-NN's BFP4 and BFP8 formats with GPTQ, for Tenstorrent Tensix NPUs**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](pyproject.toml)
 [![ttnn](https://img.shields.io/badge/ttnn-0.81.1-5B2C83)](https://github.com/tenstorrent/tt-metal/releases/tag/v0.81.1)
-[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-models-FFD21E)](https://huggingface.co/hletrd)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-models-FFD21E)](https://huggingface.co/Xylolabs)
 
 `tenstorrent` · `tensix` · `tt-metal` · `ttnn` · `quantization` · `gptq` · `block-floating-point`
 
