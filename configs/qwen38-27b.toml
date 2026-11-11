@@ -1,0 +1,15 @@
+[model]
+name = "qwen38-27b"
+family = "qwen3_5"
+[calib]
+texts = ["calib_en", "calib2_en", "calib_ko", "calib2_ko"]
+tokens = 65536
+[eval]
+texts = ["eval_en", "eval_ko"]
+tokens = 2048
+chunks = 1
+formats = ["raw"]
+[quant]
+damp = 0.1
+prep_cache = false
+variants = []

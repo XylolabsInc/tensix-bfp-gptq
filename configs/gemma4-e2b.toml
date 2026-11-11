@@ -1,0 +1,19 @@
+[model]
+name = "gemma4-e2b"
+family = "gemma4"
+[calib]
+texts = ["calib_en", "calib2_en", "calib_ko", "calib2_ko"]
+tokens = 65536
+seq = 512
+[eval]
+tokens = 512
+chunks = 8
+formats = ["raw", "chat"]
+[quant]
+damp = 0.1
+prep_cache = false
+variants = [
+  "all=bfp8,lm_head=bf16",
+  "all=bfp4,lm_head=bf16,gptq",
+  "attn_qkv=bfp8,attn_o=bfp8,mlp=bfp4,lm_head=bf16,gptq",
+]

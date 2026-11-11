@@ -1,0 +1,452 @@
+{
+  "about": "The answer check: fixed prompts with known answers, answered greedily by the rounded model and by its bf16 original. A rounded model fails only where it gets wrong an answer the bf16 model gets right, or where its text is broken (empty, garbage, a loop, the wrong language) on an item the bf16 model gets right. Scored by tensix_bfp.answers, which describes the checks. An item is never changed once results exist: a new one gets a new id, and the version goes up.",
+  "version": 1,
+  "chat": {
+    "enable_thinking": false,
+    "current_date": "2026-11-01"
+  },
+  "assistant_prefix": {},
+  "chat_by_arch": {
+    "GptOssForCausalLM": {
+      "reasoning_effort": "low"
+    },
+    "MuseGlimmerForConditionalGeneration": {
+      "reasoning_strength": "low"
+    },
+    "HyperCLOVAXForCausalLM": {
+      "skip_reasoning": true
+    }
+  },
+  "max_new_by_arch": {
+    "GptOssForCausalLM": 512,
+    "MuseGlimmerForConditionalGeneration": 512,
+    "FlintForCausalLM": 1024
+  },
+  "max_new": 160,
+  "clear_margin": 1.0,
+  "max_new_think": 4096,
+  "chat_think_by_arch": {
+    "GptOssForCausalLM": {
+      "reasoning_effort": "medium"
+    },
+    "MuseGlimmerForConditionalGeneration": {
+      "reasoning_strength": "medium"
+    },
+    "HyperCLOVAXForCausalLM": {
+      "force_reasoning": true
+    }
+  },
+  "items": [
+    {
+      "id": "en-arith-mul",
+      "lang": "en",
+      "kind": "arithmetic",
+      "prompt": "What is 17 × 23? Answer with the number only.",
+      "check": {
+        "type": "number",
+        "values": [
+          391
+        ]
+      },
+      "example": "391"
+    },
+    {
+      "id": "en-arith-add",
+      "lang": "en",
+      "kind": "arithmetic",
+      "prompt": "What is 1,234 + 5,678? Answer with the number only.",
+      "check": {
+        "type": "number",
+        "values": [
+          6912
+        ]
+      },
+      "example": "6912"
+    },
+    {
+      "id": "en-arith-price",
+      "lang": "en",
+      "kind": "arithmetic",
+      "prompt": "A shop sells pencils at 3 for 2 dollars. How many dollars do 12 pencils cost? Answer with the number only.",
+      "check": {
+        "type": "number",
+        "values": [
+          8
+        ]
+      },
+      "example": "8"
+    },
+    {
+      "id": "en-arith-percent",
+      "lang": "en",
+      "kind": "arithmetic",
+      "prompt": "What is 15% of 240? Answer with the number only.",
+      "check": {
+        "type": "number",
+        "values": [
+          36
+        ]
+      },
+      "example": "36"
+    },
+    {
+      "id": "en-fact-capital",
+      "lang": "en",
+      "kind": "fact",
+      "prompt": "What is the capital of Australia? Answer in one word.",
+      "check": {
+        "type": "regex",
+        "pattern": "\\bcanberra\\b"
+      },
+      "example": "Canberra"
+    },
+    {
+      "id": "en-fact-planet",
+      "lang": "en",
+      "kind": "fact",
+      "prompt": "Which planet is known as the Red Planet? Answer in one word.",
+      "check": {
+        "type": "regex",
+        "pattern": "\\bmars\\b"
+      },
+      "example": "Mars"
+    },
+    {
+      "id": "en-fact-gold",
+      "lang": "en",
+      "kind": "fact",
+      "prompt": "What is the chemical symbol for gold? Answer with the symbol only.",
+      "check": {
+        "type": "regex",
+        "pattern": "\\bAu\\b",
+        "case": true
+      },
+      "example": "Au"
+    },
+    {
+      "id": "en-fact-ww2",
+      "lang": "en",
+      "kind": "fact",
+      "prompt": "In which year did the Second World War end? Answer with the year only.",
+      "check": {
+        "type": "number",
+        "values": [
+          1945
+        ]
+      },
+      "example": "1945"
+    },
+    {
+      "id": "en-fact-author",
+      "lang": "en",
+      "kind": "fact",
+      "prompt": "Who wrote the play Romeo and Juliet? Answer with the name only.",
+      "check": {
+        "type": "regex",
+        "pattern": "\\bshakespeare\\b"
+      },
+      "example": "William Shakespeare"
+    },
+    {
+      "id": "en-reason-order",
+      "lang": "en",
+      "kind": "reasoning",
+      "prompt": "Tom is taller than Ann. Ann is taller than Ben. Who is the shortest? Answer with the name only.",
+      "check": {
+        "type": "regex",
+        "pattern": "^\\W*ben\\b"
+      },
+      "example": "Ben"
+    },
+    {
+      "id": "en-reason-weekday",
+      "lang": "en",
+      "kind": "reasoning",
+      "prompt": "If today is Monday, what day of the week will it be in 10 days? Answer with the day only.",
+      "check": {
+        "type": "regex",
+        "pattern": "\\bthursday\\b"
+      },
+      "example": "Thursday"
+    },
+    {
+      "id": "en-reason-ball",
+      "lang": "en",
+      "kind": "reasoning",
+      "prompt": "A bat and a ball cost 1.10 dollars in total. The bat costs 1.00 dollar more than the ball. How much does the ball cost, in cents? Answer with the number only.",
+      "check": {
+        "type": "number",
+        "values": [
+          5
+        ]
+      },
+      "example": "5"
+    },
+    {
+      "id": "en-instr-upper",
+      "lang": "en",
+      "kind": "instruction",
+      "prompt": "Reply with the word HELLO in capital letters and nothing else.",
+      "check": {
+        "type": "exact",
+        "text": "HELLO",
+        "case": true
+      },
+      "example": "HELLO"
+    },
+    {
+      "id": "en-instr-letters",
+      "lang": "en",
+      "kind": "instruction",
+      "prompt": "List the first five letters of the English alphabet, separated by commas, and nothing else.",
+      "check": {
+        "type": "regex",
+        "pattern": "^\\W*a\\s*,\\s*b\\s*,\\s*c\\s*,\\s*d\\s*,\\s*e\\W*$"
+      },
+      "example": "A, B, C, D, E"
+    },
+    {
+      "id": "en-instr-lines",
+      "lang": "en",
+      "kind": "instruction",
+      "prompt": "Write the numbers from 1 to 5 in words, one per line, with no other text.",
+      "check": {
+        "type": "lines",
+        "lines": [
+          "one",
+          "two",
+          "three",
+          "four",
+          "five"
+        ]
+      },
+      "example": "One\nTwo\nThree\nFour\nFive"
+    },
+    {
+      "id": "en-translate-ko",
+      "lang": "en",
+      "out": "ko",
+      "kind": "instruction",
+      "prompt": "Translate into Korean: \"Thank you very much.\" Reply with the translation only.",
+      "check": {
+        "type": "regex",
+        "pattern": "감사합니다|고맙습니다"
+      },
+      "example": "정말 감사합니다."
+    },
+    {
+      "id": "en-code-prime",
+      "lang": "en",
+      "out": "code",
+      "kind": "code",
+      "prompt": "Write a Python function is_prime(n) that returns True if the integer n is a prime number and False otherwise. Reply with only the code.",
+      "check": {
+        "type": "python",
+        "tests": [
+          "is_prime(2) is True",
+          "is_prime(1) is False",
+          "is_prime(0) is False",
+          "is_prime(9) is False",
+          "is_prime(97) is True",
+          "is_prime(91) is False"
+        ]
+      },
+      "example": "```python\ndef is_prime(n):\n    if n < 2:\n        return False\n    i = 2\n    while i * i <= n:\n        if n % i == 0:\n            return False\n        i += 1\n    return True\n```"
+    },
+    {
+      "id": "ko-arith-mul",
+      "lang": "ko",
+      "kind": "arithmetic",
+      "prompt": "36 곱하기 12는 얼마인가요? 숫자로만 답하세요.",
+      "check": {
+        "type": "number",
+        "values": [
+          432
+        ]
+      },
+      "example": "432"
+    },
+    {
+      "id": "ko-arith-sub",
+      "lang": "ko",
+      "kind": "arithmetic",
+      "prompt": "1000에서 387을 빼면 얼마인가요? 숫자로만 답하세요.",
+      "check": {
+        "type": "number",
+        "values": [
+          613
+        ]
+      },
+      "example": "613"
+    },
+    {
+      "id": "ko-arith-price",
+      "lang": "ko",
+      "kind": "arithmetic",
+      "prompt": "사과 한 개에 1,200원입니다. 사과 5개는 모두 얼마인가요? 숫자로만 답하세요.",
+      "check": {
+        "type": "number",
+        "values": [
+          6000
+        ]
+      },
+      "example": "6,000원"
+    },
+    {
+      "id": "ko-arith-seconds",
+      "lang": "ko",
+      "kind": "arithmetic",
+      "prompt": "한 시간은 몇 초인가요? 숫자로만 답하세요.",
+      "check": {
+        "type": "number",
+        "values": [
+          3600
+        ]
+      },
+      "example": "3600"
+    },
+    {
+      "id": "ko-fact-capital",
+      "lang": "ko",
+      "kind": "fact",
+      "prompt": "대한민국의 수도는 어디인가요? 한 단어로 답하세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "서울"
+      },
+      "example": "서울"
+    },
+    {
+      "id": "ko-fact-hangul",
+      "lang": "ko",
+      "kind": "fact",
+      "prompt": "한글을 만든 조선의 왕은 누구인가요? 이름만 답하세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "세종"
+      },
+      "example": "세종대왕"
+    },
+    {
+      "id": "ko-fact-boil",
+      "lang": "ko",
+      "kind": "fact",
+      "prompt": "1기압에서 물이 끓는 온도는 섭씨 몇 도인가요? 숫자로만 답하세요.",
+      "check": {
+        "type": "number",
+        "values": [
+          100
+        ]
+      },
+      "example": "100"
+    },
+    {
+      "id": "ko-fact-ocean",
+      "lang": "ko",
+      "kind": "fact",
+      "prompt": "지구에서 가장 넓은 바다는 무엇인가요? 한 단어로 답하세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "태평양"
+      },
+      "example": "태평양"
+    },
+    {
+      "id": "ko-reason-age",
+      "lang": "ko",
+      "kind": "reasoning",
+      "prompt": "민수는 지수보다 나이가 많고, 지수는 현우보다 나이가 많습니다. 세 사람 중 가장 어린 사람은 누구인가요? 이름만 답하세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "^\\W*현우"
+      },
+      "example": "현우"
+    },
+    {
+      "id": "ko-reason-weekday",
+      "lang": "ko",
+      "kind": "reasoning",
+      "prompt": "오늘이 수요일이면 3일 뒤는 무슨 요일인가요? 요일만 답하세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "토요일"
+      },
+      "example": "토요일"
+    },
+    {
+      "id": "ko-reason-balls",
+      "lang": "ko",
+      "kind": "reasoning",
+      "prompt": "상자에 빨간 공 3개와 파란 공 5개가 있습니다. 빨간 공 2개를 꺼내면 상자에 남은 공은 모두 몇 개인가요? 숫자로만 답하세요.",
+      "check": {
+        "type": "number",
+        "values": [
+          6
+        ]
+      },
+      "example": "6"
+    },
+    {
+      "id": "ko-instr-echo",
+      "lang": "ko",
+      "kind": "instruction",
+      "prompt": "'안녕하세요'라는 말만 그대로 한 번 쓰세요. 다른 말은 쓰지 마세요.",
+      "check": {
+        "type": "exact",
+        "text": "안녕하세요"
+      },
+      "example": "안녕하세요"
+    },
+    {
+      "id": "ko-instr-seasons",
+      "lang": "ko",
+      "kind": "instruction",
+      "prompt": "봄, 여름, 가을, 겨울을 이 순서대로 쉼표로 구분해 한 줄로 쓰세요. 다른 말은 쓰지 마세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "^\\W*봄\\s*,\\s*여름\\s*,\\s*가을\\s*,\\s*겨울\\W*$"
+      },
+      "example": "봄, 여름, 가을, 겨울"
+    },
+    {
+      "id": "ko-translate-en",
+      "lang": "ko",
+      "out": "en",
+      "kind": "instruction",
+      "prompt": "다음 문장을 영어로 번역하세요: '나는 사과를 좋아합니다.' 번역문만 쓰세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "\\bi (really |do )?(like|love) apples\\b"
+      },
+      "example": "I like apples."
+    },
+    {
+      "id": "ko-explain-sky",
+      "lang": "ko",
+      "kind": "reasoning",
+      "prompt": "하늘이 파랗게 보이는 이유를 한 문장으로 설명하세요.",
+      "check": {
+        "type": "regex",
+        "pattern": "산란|흩어"
+      },
+      "example": "햇빛이 공기 분자에 부딪혀 파장이 짧은 파란빛이 더 많이 산란되기 때문입니다."
+    },
+    {
+      "id": "ko-code-gcd",
+      "lang": "ko",
+      "out": "code",
+      "kind": "code",
+      "prompt": "두 정수 a와 b의 최대공약수를 반환하는 파이썬 함수 gcd(a, b)를 작성하세요. 코드만 쓰세요.",
+      "check": {
+        "type": "python",
+        "tests": [
+          "gcd(12, 18) == 6",
+          "gcd(17, 5) == 1",
+          "gcd(0, 7) == 7",
+          "gcd(100, 75) == 25"
+        ]
+      },
+      "example": "```python\ndef gcd(a, b):\n    while b:\n        a, b = b, a % b\n    return a\n```"
+    }
+  ]
+}

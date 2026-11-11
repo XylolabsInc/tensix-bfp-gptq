@@ -1,0 +1,37 @@
+tensix-bfp-gptq
+Copyright 2026 Xylolabs
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Origin of the files
+
+  tensix_bfp/bfp.py          extracted from our internal quantization tool (q4.py, qbm.py)
+  tensix_bfp/gptq.py         extracted from our internal quantization tool (q4.py, qbm.py)
+  tensix_bfp/export.py       extracted from our internal quantization tool (pipeline.py, export.py,
+                             selfcontain.py, ckpt.py, profiles.py)
+  tensix_bfp/data.py         extracted from our internal quantization tool (data.py)
+  tensix_bfp/kl.py           extracted from our internal quantization tool (kl_export.py, pipeline.py)
+  tensix_bfp/answers.py      extracted from our internal quantization tool (answer_check.py)
+  tensix_bfp/answers.json    extracted from our internal quantization tool (answer_check.json)
+  tensix_bfp/ministral3.py   extracted from our internal quantization tool (flatten_m3.py)
+  configs/*.toml             extracted from our internal quantization tool (configs/*.toml)
+  tools/pack_tensix.py       extracted from our internal model release tools (pack_tensix.py)
+  tools/verify_grid.py       extracted from our internal model release tools (verify_grid.py)
+  tests/test_ttnn_pack.py    extracted from our internal model release tools (selftest.py)
+  tensix_bfp/__init__.py, tests/test_bfp.py, tests/test_gptq.py, tests/test_export_tiny.py,
+  README.md, pyproject.toml  written for this release
+
+Third-party
+
+  No third-party code is copied into this product. PyTorch, safetensors, transformers,
+  tokenizers and numpy are dependencies, and ttnn an optional one, each installed separately
+  under its own license.
+
+  GPTQ follows Frantar et al., "GPTQ: Accurate Post-Training Quantization for Generative
+  Pre-trained Transformers" (2022); no code was copied.
+
+  The KL chunking follows llama.cpp's perplexity tool's method (each chunk starting with the
+  begin-of-sequence token in place of its first token); no code was copied.
+
+  The calibration and evaluation texts (WikiText-2 and Korean Wikipedia, CC BY-SA) are not
+  included; tensix_bfp/data.py downloads them from their sources.

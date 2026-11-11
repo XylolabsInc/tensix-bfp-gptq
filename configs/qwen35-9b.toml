@@ -1,0 +1,17 @@
+[model]
+name = "qwen35-9b"
+family = "qwen3_5"
+[calib]
+texts = ["calib_en", "calib2_en", "calib_ko", "calib2_ko"]
+tokens = 65536
+[eval]
+chunks = 2
+formats = ["raw", "chat"]
+[quant]
+damp = 0.1
+prep_cache = false
+variants = [
+  "all=bfp8,lm_head=bf16",
+  "all=bfp4,ab=bfp4,lm_head=bf16,gptq",
+  "mlp=bfp4,mix=bfp8,lm_head=bf16,gptq",
+]

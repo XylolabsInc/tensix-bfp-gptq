@@ -1,0 +1,19 @@
+[model]
+name = "ministral3-14b"
+family = "ministral3"
+[calib]
+texts = ["calib_en", "calib2_en", "calib_ko", "calib2_ko"]
+tokens = 65536
+seq = 1024
+[eval]
+tokens = 1024
+chunks = 4
+formats = ["raw", "chat"]
+[quant]
+damp = 0.1
+prep_cache = false
+variants = [
+  "all=bfp8",
+  "all=bfp4,lm_head=bf16,gptq",
+  "mix=bfp8,mlp=bfp4,lm_head=bf16,gptq",
+]

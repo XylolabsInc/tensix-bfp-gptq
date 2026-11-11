@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tensix-bfp-gptq"
+version = "0.1.0"
+description = "BFP4/BFP8 (TT-NN bfloat4_b / bfloat8_b) weight rounding with GPTQ for Tenstorrent Tensix NPUs"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+authors = [{ name = "Xylolabs" }]
+keywords = ["quantization", "gptq", "tenstorrent", "tensix", "ttnn", "block floating point"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "torch>=2.6",
+  "safetensors>=0.5",
+  "transformers>=5.0",
+  "tokenizers>=0.21",
+  "numpy",
+]
+
+[project.optional-dependencies]
+ttnn = ["ttnn==0.81.1"]
+test = ["pytest"]
+
+[project.scripts]
+tensix-bfp-export = "tensix_bfp.export:main"
+tensix-bfp-kl = "tensix_bfp.kl:main"
+tensix-bfp-answers = "tensix_bfp.answers:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tensix_bfp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["tensix_bfp", "configs", "tools", "tests", "README.md", "LICENSE", "NOTICE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = ["I"]

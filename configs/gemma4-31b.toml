@@ -1,0 +1,23 @@
+[model]
+name = "gemma4-31b"
+family = "gemma4"
+[calib]
+texts = ["calib_en", "calib2_en", "calib_ko", "calib2_ko"]
+tokens = 65536
+seq = 1024
+[eval]
+tokens = 1024
+chunks = 4
+formats = ["raw", "chat"]
+[quant]
+damp = 0.1
+prep_cache = false
+variants = [
+  "all=bfp8",
+  "all=bfp4",
+  "all=bfp4,lm_head=bf16,gptq",
+  "all=bfp4,gptq",
+  "attn_qkv=bfp8,attn_o=bfp8,mlp=bfp4,lm_head=bf16,gptq",
+  "all=bfp4,lm_head=bf16,gptq,all@36-39+50-52+56-57=bfp8",
+  "attn_qkv=bfp8,attn_o=bfp8,mlp=bfp4,lm_head=bf16,gptq,mlp@36-39+50-52+56-57=bfp8",
+]
