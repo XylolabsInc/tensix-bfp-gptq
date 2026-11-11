@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/xylolabs-lockup-dark.svg">
+  <img src="assets/xylolabs-lockup.svg" alt="Xylolabs" height="40">
+</picture>
+
 # tensix-bfp-gptq
 
 **Quantize Hugging Face LLMs to TT-NN's BFP4 and BFP8 formats with GPTQ, for Tenstorrent Tensix NPUs**
@@ -86,8 +91,9 @@ python -m tensix_bfp.data fetch [--data DIR]   # default $TENSIX_BFP_DATA or ~/.
 python -m tensix_bfp.data check [--data DIR]
 ```
 
-The texts are WikiText-2 (train and test) and extracts of Korean Wikipedia articles. Both are
-CC BY-SA and are downloaded from their sources, not shipped here. `tensix_bfp/data.py` records each
+The texts are WikiText-2 (train and test; CC BY-SA 3.0 and GFDL) and extracts of Korean Wikipedia
+articles (CC BY-SA 4.0, most text also GFDL). Both are downloaded from their sources, not shipped
+here. `tensix_bfp/data.py` records each
 file's source and SHA-256. Wikipedia articles change, so a fresh Korean fetch may not match the
 recorded hash.
 

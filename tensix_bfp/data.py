@@ -16,9 +16,10 @@
   eval_ko     KO_EVAL articles, characters 0 .. 3,500 of each       joined by a blank line
   calib2_ko   KO_CALIB articles, characters 3,500 .. 12,500 of each joined by a blank line
 
-Both sources are CC BY-SA; the texts are not shipped with this package. The SHA-256 of each file
-as used for the published exports is in SHA256: WikiText-2 fetches reproduce it, while Wikipedia
-articles change over time, so a fresh Korean fetch may differ (and an export made from it too).
+WikiText-2 is CC BY-SA 3.0 and GFDL, Korean Wikipedia CC BY-SA 4.0 (most text also GFDL); the
+texts are not shipped with this package. The SHA-256 of each file as used for the published
+exports is in SHA256: WikiText-2 fetches reproduce it, while Wikipedia articles change over time,
+so a fresh Korean fetch may differ (and an export made from it too).
 
   python -m tensix_bfp.data fetch [--data DIR]    download the six texts (skips existing files)
   python -m tensix_bfp.data check [--data DIR]    compare the files with SHA256
