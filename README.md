@@ -18,10 +18,10 @@
 
 </div>
 
-This tool rounds the linear layers of a Hugging Face LLM onto TT-NN's block floating point formats,
-`ttnn.bfloat4_b` (BFP4) and `ttnn.bfloat8_b` (BFP8), by GPTQ or to nearest. The output is an
+This tool quantizes the linear layers of a Hugging Face LLM to TT-NN's block floating point formats,
+`ttnn.bfloat4_b` (BFP4) and `ttnn.bfloat8_b` (BFP8), with GPTQ or round to nearest. The output is an
 ordinary bf16 safetensors checkpoint whose values already sit on the grid. TT-NN packs it without
-rounding again, and transformers on a CPU or GPU runs exactly the weights the NPU will run.
+quantizing again, and transformers on a CPU or GPU runs exactly the weights the NPU will run.
 
 ## How it works
 
@@ -31,16 +31,16 @@ the 16. Each value keeps a sign and a mantissa with an explicit leading one: 3 b
 BFP8, so 4.5 and 8.5 bits a weight. `tensix_bfp.bfp.bfp()` matches tt-metal's host packer bit for
 bit, and `tests/test_ttnn_pack.py` checks it against `ttnn.as_tensor`.
 
-GPTQ (Frantar et al., 2022) rounds one input channel at a time and spreads each column's error over
-the columns not yet rounded. A block lies inside one column, so GPTQ applies unchanged. For BFP4 the
-default method `exp` also tries each block's exponent one step lower and keeps whichever gives the
-smaller error. One step lower clips the largest values at the top code and puts the rest on a grid
-twice as fine.
+GPTQ (Frantar et al., 2022) quantizes one input channel at a time and spreads each column's error
+over the columns not yet quantized. A block lies inside one column, so GPTQ applies unchanged. For
+BFP4 the default method `exp` also tries each block's exponent one step lower and keeps whichever
+gives the smaller error. One step lower clips the largest values at the top code and puts the rest
+on a grid twice as fine.
 
 The values stay exact wherever a runtime packs them as `[in, out]` at their own format or a wider
 one: `ttnn.as_tensor`, tt-transformers with `--use_hf_rope`, and the tt-metal demos at matching
-dtypes. tt-transformers without `--use_hf_rope` and tt-forge's `experimental_weight_dtype` round
-them again.
+dtypes. tt-transformers without `--use_hf_rope` and tt-forge's `experimental_weight_dtype`
+re-quantize them.
 
 ## Install
 
@@ -121,14 +121,15 @@ A variant is a comma list:
   `gdn_in`, `gdn_out` and `ab`);
 - `all=FMT`, `mix=FMT` (the token mixers) and `mlp=FMT`;
 - `GROUP@LAYERS=FMT` for some layers only, with LAYERS like `36-39+50`;
-- `gptq` to round the BFP4 groups by GPTQ (otherwise to nearest), and `damp=X` for its damping.
+- `gptq` to quantize the BFP4 groups with GPTQ (otherwise with round to nearest), and `damp=X` for
+  its damping.
 
 The formats are `bf16`, `bfp8` and `bfp4`. Unnamed groups stay bf16 (Qwen3.5's `ab` stays bfp8).
 
 The other options:
 
 - `--method exp|gptq`: BFP4 GPTQ with the exponent search (the default) or without it.
-- `--bfp8 rtn|exp|gptq`: BFP8 rounded to nearest (the default), with the exponent search, or by
+- `--bfp8 rtn|exp|gptq`: BFP8 with round to nearest (the default), with the exponent search, or with
   GPTQ.
 - `--manifest-format 1|2`: whether `quant4.json` records the LM head's source tensor (2, the
   default, does).
@@ -138,11 +139,11 @@ The output loads with transformers like the original:
 
 | file | content |
 |---|---|
-| `layers-NN.safetensors` | decoder layer NN, each rounded matrix as bf16 on its grid |
+| `layers-NN.safetensors` | decoder layer NN, each quantized matrix as bf16 on its grid |
 | `head.safetensors` | the LM head and the final norm |
 | `rest.safetensors` | every other tensor: the embedding, MTP layers, a vision tower |
 | `model.safetensors.index.json` | the weight map, with the variant in its metadata |
-| `quant4.json` | each projection's format per layer and the rounding method |
+| `quant4.json` | each projection's format per layer and the quantization method |
 | `config.json`, tokenizer files | copied from the original |
 
 Ministral 3's BF16 release is a vision-language checkpoint, so it needs a text-only copy first:

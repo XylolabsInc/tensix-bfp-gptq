@@ -5,9 +5,9 @@ Instructions for AI coding agents (Codex, Claude Code and others) working in thi
 
 ## What this is
 
-tensix-bfp-gptq rounds the linear layers of Hugging Face LLMs onto TT-NN's block floating point
-grids (`ttnn.bfloat4_b`, `ttnn.bfloat8_b`), by GPTQ or to nearest. It writes bf16 safetensors whose
-values TT-NN packs without rounding again. The README covers the method and every command.
+tensix-bfp-gptq quantizes the linear layers of Hugging Face LLMs to TT-NN's block floating point
+formats (`ttnn.bfloat4_b`, `ttnn.bfloat8_b`) with GPTQ or round to nearest. It writes bf16 safetensors
+that TT-NN packs as they are. The README covers the method and every command.
 
 ## Layout
 
