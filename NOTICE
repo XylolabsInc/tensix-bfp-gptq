@@ -35,3 +35,7 @@ Third-party
 
   The calibration and evaluation texts (WikiText-2 and Korean Wikipedia, CC BY-SA) are not
   included; tensix_bfp/data.py downloads them from their sources.
+
+  The answer-check items in tensix_bfp/answers.json were written for this product. One of them
+  (en-reason-ball) paraphrases the bat-and-ball problem from S. Frederick, "Cognitive Reflection
+  and Decision Making", Journal of Economic Perspectives, 2005.
