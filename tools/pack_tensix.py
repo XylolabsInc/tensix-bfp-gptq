@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Xylolabs
-"""Pack this checkpoint's rounded matrices into TT-NN's block floating-point formats and check the round trip.
+"""Pack this checkpoint's quantized matrices into TT-NN's block floating-point formats and check the round trip.
 
 For each linear projection that `quant4.json` lists as bfp4 or bfp8, the PyTorch weight [out, in]
 is transposed to [in, out] (the layout TT-NN's matmul reads), packed with

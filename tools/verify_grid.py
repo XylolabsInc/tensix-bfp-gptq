@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Xylolabs
-"""Check that every rounded matrix of this checkpoint lies exactly on its block floating-point grid.
+"""Check that every quantized matrix of this checkpoint lies exactly on its block floating-point grid.
 
 The checkpoint stores bf16 values. `quant4.json` names each linear projection's format per layer:
 bfp4 = TT-NN's bfloat4_b (BFP4), bfp8 = bfloat8_b (BFP8). TT-NN multiplies x @ W with W laid out
 [in, out] (the transpose of the PyTorch weight), and in tile layout each block of 16 consecutive
 values of a row (16 output channels of one input channel) shares one 8-bit exponent: the largest
 exponent of the 16. Each value keeps a sign and a 3-bit (BFP4) or 7-bit (BFP8) mantissa. A value is
-on the grid when re-rounding it with its block's exponent gives it back unchanged; then TT-NN's
-packer stores it with no further rounding.
+on the grid when re-quantizing it with its block's exponent gives it back unchanged; then TT-NN's
+packer stores it as it is.
 
 Needs only torch and safetensors (no Tenstorrent software).
 
@@ -30,7 +30,7 @@ SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
 def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
-    """Re-round a [in, out] matrix to its block grid; return the re-rounded matrix (float32)."""
+    """Re-quantize a [in, out] matrix to its block grid; return the re-quantized matrix (float32)."""
     x = w_in_out.float()
     rows, cols = x.shape
     pad = (-cols) % 16
