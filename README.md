@@ -45,20 +45,25 @@ them again.
 ## Install
 
 ```
-pip install .            # torch, safetensors, transformers, tokenizers, numpy, accelerate
+pip install .            # torch, safetensors, transformers, tokenizers, accelerate
 pip install ".[ttnn]"    # also ttnn 0.81.1, for tools/pack_tensix.py and the ttnn tests
 pip install ".[test]"    # pytest
 ```
 
-This needs Python 3.11 or later, and 3.12 for `.[ttnn]`. ttnn 0.81.1 ships wheels for Linux x86_64
-with glibc 2.34 or later; on any other platform the extra installs without ttnn.
+This needs Python 3.11 or later and is tested on 3.11 to 3.15. `.[ttnn]` needs Python 3.12: ttnn
+0.81.1 ships wheels only for CPython 3.10 and 3.12, on Linux x86_64 with glibc 2.34 or later. On
+any other Python or platform the extra installs without ttnn.
+
+It is tested on Ubuntu 24.04. tt-metal v0.81.1 is built for Ubuntu 22.04 and 24.04; Ubuntu 26.04
+is not on that list, though its glibc is new enough for the wheel. Its system Python is 3.14, so
+`.[ttnn]` there needs a separate Python 3.12, such as `uv venv --python 3.12`.
 
 ttnn packs on the host but still needs a Tenstorrent card or Tenstorrent's simulator. Without a
-card, use [ttsim](https://github.com/tenstorrent/ttsim) (tested with v1.15.1). Device round trips
+card, use [ttsim](https://github.com/tenstorrent/ttsim) (tested with v1.16.0). Device round trips
 (`--device`, the DRAM test) also need SFPI 7.89.0:
 
 ```
-curl -LO https://github.com/tenstorrent/ttsim/releases/download/v1.15.1/libttsim_bh.so
+curl -LO https://github.com/tenstorrent/ttsim/releases/download/v1.16.0/libttsim_bh.so
 curl -L -o soc_descriptor.yaml https://raw.githubusercontent.com/tenstorrent/tt-metal/v0.81.1/tt_metal/soc_descriptors/blackhole_140_arch.yaml
 export TT_METAL_SIMULATOR=$PWD/libttsim_bh.so TT_METAL_SLOW_DISPATCH_MODE=1
 curl -LO https://github.com/tenstorrent/sfpi/releases/download/7.89.0/sfpi_7.89.0_x86_64_debian.txz
@@ -93,9 +98,8 @@ python -m tensix_bfp.data check [--data DIR]
 
 The texts are WikiText-2 (train and test; CC BY-SA 3.0 and GFDL) and extracts of Korean Wikipedia
 articles (CC BY-SA 4.0, most text also GFDL). Both are downloaded from their sources, not shipped
-here. `tensix_bfp/data.py` records each
-file's source and SHA-256. Wikipedia articles change, so a fresh Korean fetch may not match the
-recorded hash.
+here. `tensix_bfp/data.py` records each file's source and SHA-256. Wikipedia articles change, so a
+fresh Korean fetch may not match the recorded hash.
 
 Calibration takes `[calib] tokens` tokens, split evenly over `[calib] texts` in sequences of
 `[calib] seq`. For Llama, Ministral 3 and Gemma 4, each sequence starts with the begin-of-sequence
