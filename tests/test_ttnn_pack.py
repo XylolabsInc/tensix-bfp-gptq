@@ -21,11 +21,28 @@ try:
 except ImportError:  # pragma: no cover - depends on the environment
     ttnn = None
 
+
+def no_chip():
+    """Why ttnn cannot pack here (it needs a card or the simulator even on the host), or None."""
+    try:
+        ttnn.as_tensor(
+            torch.zeros(32, 32, dtype=torch.bfloat16), ttnn.bfloat8_b, layout=ttnn.TILE_LAYOUT
+        )
+    except Exception as e:  # TT_FATAL without a card or the simulator
+        return str(e).splitlines()[0] if str(e) else "no chip"
+    return None
+
+
 if __name__ != "__main__":
     import pytest
 
     if ttnn is None:
         pytest.skip("ttnn is not installed", allow_module_level=True)
+    _why = no_chip()
+    if _why:
+        pytest.skip(
+            "ttnn sees no Tenstorrent card or simulator: %s" % _why, allow_module_level=True
+        )
 
 FORMATS = (("bfp4", 3), ("bfp8", 7))
 
@@ -66,13 +83,16 @@ def test_grid_values_pack_unchanged():
     assert torch.equal(packed(q4, ttnn.bfloat8_b), q4)
 
 
+class Skipped(Exception):
+    pass
+
+
 def test_dram_round_trip():
     try:
         dev = ttnn.open_device(device_id=0)
     except Exception as e:  # no device or simulator
         if __name__ == "__main__":
-            print(f"no device: {e}")
-            return
+            raise Skipped(f"no device: {e}")
         import pytest
 
         pytest.skip(f"no device: {e}")
@@ -88,11 +108,17 @@ if __name__ == "__main__":
     if ttnn is None:
         print("ttnn is not installed: skipped")
         sys.exit(0)
+    why = no_chip()
+    if why:
+        print(f"ttnn sees no Tenstorrent card or simulator: skipped ({why})")
+        sys.exit(0)
     failed = 0
     for name, fn in [(k, v) for k, v in globals().items() if k.startswith("test_")]:
         try:
             fn()
             print(f"{name}: passed", flush=True)
+        except Skipped as e:
+            print(f"{name}: skipped ({e})", flush=True)
         except AssertionError as e:
             failed += 1
             print(f"{name}: FAILED {e}", flush=True)

@@ -20,6 +20,12 @@ and 8.5 bits per weight. `tensix_bfp.bfp.bfp()` reproduces the host packer of tt
 (round to nearest even, the mantissa clamped at its maximum, values with a zero exponent field
 flushed to zero); `tests/test_ttnn_pack.py` checks it against `ttnn.as_tensor`.
 
+A runtime keeps the values exactly when it packs them in the `[in, out]` layout at their own format
+or a wider one: TT-NN's `ttnn.as_tensor`, tt-transformers with `--use_hf_rope`, and the tt-metal
+demos at matching dtypes. tt-transformers without `--use_hf_rope` reorders the q and k rows and
+re-rounds the fused QKV, and tt-forge's `experimental_weight_dtype` packs PyTorch's `[out, in]`
+layout and re-rounds them.
+
 GPTQ (Frantar et al., 2022) rounds one input channel at a time and spreads each column's error
 over the columns not yet rounded, through the inverse Hessian of the projection's input. A BFP
 block lies inside one column, so GPTQ applies unchanged. For bfloat4_b the default method `exp`
@@ -31,12 +37,27 @@ the block's largest exponent, stores the result exactly.
 ## Install
 
 ```
-pip install .                 # torch, safetensors, transformers, tokenizers, numpy
+pip install .                 # torch, safetensors, transformers, tokenizers, numpy, accelerate
 pip install ".[ttnn]"         # also ttnn 0.81.1, for tools/pack_tensix.py and the ttnn tests
 pip install ".[test]"         # pytest
 ```
 
-Python 3.11 or later.
+Python 3.11 or later; 3.12 for `.[ttnn]` (ttnn 0.81.1 ships wheels for Linux x86_64 with glibc 2.34
+or later; on any other Python or platform the extra installs without ttnn).
+
+ttnn packs on the host but still needs a Tenstorrent card or Tenstorrent's simulator, even without
+`--device`. With no card, use [ttsim](https://github.com/tenstorrent/ttsim) (tested with v1.15.1);
+device round trips (`--device`, the DRAM test) also need SFPI 7.89.0, tt-metal v0.81.1's version:
+
+```
+curl -LO https://github.com/tenstorrent/ttsim/releases/download/v1.15.1/libttsim_bh.so
+curl -L -o soc_descriptor.yaml https://raw.githubusercontent.com/tenstorrent/tt-metal/v0.81.1/tt_metal/soc_descriptors/blackhole_140_arch.yaml
+export TT_METAL_SIMULATOR=$PWD/libttsim_bh.so TT_METAL_SLOW_DISPATCH_MODE=1
+curl -LO https://github.com/tenstorrent/sfpi/releases/download/7.89.0/sfpi_7.89.0_x86_64_debian.txz
+tar -xJf sfpi_7.89.0_x86_64_debian.txz -C "$(python -c 'import os, ttnn; print(os.path.dirname(ttnn.__file__))')/runtime"
+```
+
+`soc_descriptor.yaml` must sit beside the simulator library for tt-metal older than v0.83.
 
 ## Supported models
 
@@ -182,7 +203,7 @@ right with thinking on. `prompts` writes the token ids for another runner, such 
 ## Tests
 
 ```
-pytest                                    # torch and transformers; the ttnn tests skip without ttnn
+pytest                                    # torch and transformers; the ttnn tests skip without ttnn or a chip
 python tests/test_ttnn_pack.py            # the ttnn tests alone, without pytest
 ```
 

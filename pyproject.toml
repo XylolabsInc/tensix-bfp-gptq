@@ -23,10 +23,12 @@ dependencies = [
   "transformers>=5.0",
   "tokenizers>=0.21",
   "numpy",
+  "accelerate>=1.15",
 ]
 
 [project.optional-dependencies]
-ttnn = ["ttnn==0.81.1"]
+# ttnn 0.81.1 ships wheels for CPython 3.12 (and 3.10) on Linux x86_64 only
+ttnn = ["ttnn==0.81.1; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'"]
 test = ["pytest"]
 
 [project.scripts]
