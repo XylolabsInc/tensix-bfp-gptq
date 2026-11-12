@@ -136,3 +136,53 @@ def test_unquantized_head_needs_no_tensor(tmp_path):
     )
     result = verify(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("fmt,value", [("bfp4", 1.25), ("bfp8", 1.015625)])
+@pytest.mark.parametrize("fused", [False, True])
+def test_bare_parameter_is_checked(tmp_path, fmt, value, fused):
+    projection = "mlp.experts.gate_up_proj" if fused else "mlp.up_proj"
+    key = f"model.layers.0.{projection}"
+    shape = (2, 32, 32) if fused else (32, 32)
+    checkpoint(
+        tmp_path,
+        {key: torch.full(shape, value, dtype=torch.bfloat16)},
+        {"0": {projection: {"format": fmt}}},
+    )
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_second_fused_expert_is_checked(tmp_path):
+    key = "model.layers.0.mlp.experts.gate_up_proj"
+    values = torch.ones(2, 32, 32, dtype=torch.bfloat16)
+    values[1, 0, 0] = 1.125
+    checkpoint(tmp_path, {key: values}, {"0": {"mlp.experts.gate_up_proj": {"format": "bfp4"}}})
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert "1 of 2 matrices" in result.stdout
+
+
+def test_bare_and_weight_aliases_are_ambiguous(tmp_path):
+    key = "model.layers.0.mlp.up_proj"
+    tensors = {name: torch.ones(32, 32, dtype=torch.bfloat16) for name in [key, key + ".weight"]}
+    checkpoint(tmp_path, tensors, {"0": {"mlp.up_proj": {"format": "bfp4"}}})
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert "no unambiguous tensors" in result.stderr
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_numbered_bare_parameters(tmp_path, ambiguous):
+    prefix = "model.layers.0.mlp.experts."
+    tensors = {
+        prefix + str(i) + ".up_proj": torch.ones(32, 32, dtype=torch.bfloat16) for i in range(2)
+    }
+    if ambiguous:
+        tensors[prefix + "0.up_proj.weight"] = torch.ones(32, 32, dtype=torch.bfloat16)
+    checkpoint(tmp_path, tensors, {"0": {"mlp.experts.up_proj": {"format": "bfp4"}}})
+    result = verify(tmp_path)
+    assert result.returncode == int(ambiguous), result.stdout + result.stderr
+    if not ambiguous:
+        assert "2 matrices checked, 0 off the grid" in result.stdout

@@ -146,6 +146,35 @@ def test_checker_covers_numbered_experts_and_quantized_head():
                     assert f"MISMATCH {head_name}" in result.stdout
 
 
+def test_checker_covers_bare_fused_experts():
+    tool = Path(__file__).resolve().parents[1] / "tools/pack_tensix.py"
+    for fmt, valid, bad in [("bfp4", 1.25, 1.125), ("bfp8", 1.015625, 1.0078125)]:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            key = "model.layers.0.mlp.experts.gate_up_proj"
+            tensors = {key: torch.full((2, 32, 32), valid, dtype=torch.bfloat16)}
+            (directory / "quant4.json").write_text(
+                json.dumps({"layers": {"0": {"mlp.experts.gate_up_proj": {"format": fmt}}}})
+            )
+            (directory / "model.safetensors.index.json").write_text(
+                json.dumps({"weight_map": {key: "weights.safetensors"}})
+            )
+            for broken in (False, True):
+                if broken:
+                    tensors[key][1, 0, 0] = bad
+                save_file(tensors, str(directory / "weights.safetensors"))
+                result = subprocess.run(
+                    [sys.executable, "-I", str(tool), str(directory)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                assert result.returncode == int(broken), result.stdout + result.stderr
+                assert "2 matrices packed with TT-NN" in result.stdout
+                if broken:
+                    assert f"MISMATCH {key}.1" in result.stdout
+
+
 if __name__ == "__main__":
     if ttnn is None:
         print("ttnn is not installed: skipped")

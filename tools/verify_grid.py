@@ -39,15 +39,15 @@ def quantized_weights(manifest, weight_map, layers=None):
             fmt = record.get("format") if isinstance(record, dict) else None
             if fmt not in ("bfp4", "bfp8"):
                 continue
-            suffix = f"layers.{layer}.{name}.weight"
-            keys = [k for k in weight_map if k.endswith(suffix) and not any(s in k for s in SKIP)]
+            suffixes = (f"layers.{layer}.{name}.weight", f"layers.{layer}.{name}")
+            keys = [k for k in weight_map if k.endswith(suffixes) and not any(s in k for s in SKIP)]
             if not keys and ".experts." in name:
                 module, projection = name.rsplit(".experts.", 1)
 
                 def numbered(part):
                     pattern = re.compile(
                         rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
-                        rf"\.experts\.(\d+)\.{re.escape(part)}\.weight$"
+                        rf"\.experts\.(\d+)\.{re.escape(part)}(?:\.weight)?$"
                     )
                     matches = [
                         (int(m.group(1)), k)
