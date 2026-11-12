@@ -20,6 +20,7 @@ Exit status 0 when every listed matrix is on its grid, 1 otherwise.
 import argparse
 import json
 import os
+import re
 import sys
 
 import torch
@@ -27,6 +28,56 @@ from safetensors import safe_open
 
 MANTISSA_BITS = {"bfp4": 3, "bfp8": 7}
 SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
+
+
+def quantized_weights(manifest, weight_map, layers=None):
+    """Every declared quantized tensor, including numbered experts and the LM head."""
+    for layer, projections in manifest.get("layers", {}).items():
+        if layers is not None and layer not in layers:
+            continue
+        for name, record in projections.items():
+            fmt = record.get("format") if isinstance(record, dict) else None
+            if fmt not in ("bfp4", "bfp8"):
+                continue
+            suffix = f"layers.{layer}.{name}.weight"
+            keys = [k for k in weight_map if k.endswith(suffix) and not any(s in k for s in SKIP)]
+            if not keys and ".experts." in name:
+                module, projection = name.rsplit(".experts.", 1)
+
+                def numbered(part):
+                    pattern = re.compile(
+                        rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
+                        rf"\.experts\.(\d+)\.{re.escape(part)}\.weight$"
+                    )
+                    matches = [
+                        (int(m.group(1)), k)
+                        for k in weight_map
+                        if (m := pattern.search(k)) and not any(s in k for s in SKIP)
+                    ]
+                    if len({i for i, _ in matches}) != len(matches):
+                        raise ValueError(f"projection {layer}/{name} has ambiguous experts")
+                    return sorted(matches)
+
+                matches = numbered(projection)
+                if matches:
+                    yield from ((k, fmt) for _, k in matches)
+                    continue
+                if projection == "gate_up_proj":
+                    gates, ups = numbered("gate_proj"), numbered("up_proj")
+                    if gates and [i for i, _ in gates] == [i for i, _ in ups]:
+                        for (_, gate), (_, up) in zip(gates, ups):
+                            yield gate, fmt
+                            yield up, fmt
+                        continue
+            if len(keys) != 1:
+                raise ValueError(f"projection {layer}/{name} has no unambiguous tensors")
+            yield keys[0], fmt
+    fmt = manifest.get("lm_head")
+    if fmt in ("bfp4", "bfp8"):
+        name = manifest.get("lm_head_tensor", "lm_head.weight")
+        if not isinstance(name, str) or name not in weight_map:
+            raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
+        yield name, fmt
 
 
 def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
@@ -55,42 +106,31 @@ def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("model_dir", nargs="?", default=".")
-    ap.add_argument("--layers", help="comma-separated layer numbers to check (default: all)")
+    ap.add_argument(
+        "--layers", help="layer numbers to check; the quantized LM head is always checked"
+    )
     a = ap.parse_args()
     d = a.model_dir
     manifest = json.load(open(os.path.join(d, "quant4.json")))
     weight_map = json.load(open(os.path.join(d, "model.safetensors.index.json")))["weight_map"]
     want = set(a.layers.split(",")) if a.layers else None
+    weights = list(quantized_weights(manifest, weight_map, want))
     checked, off = 0, 0
     handles = {}
-    for layer, projs in manifest["layers"].items():
-        if want and layer not in want:
-            continue
-        for name, info in projs.items():
-            fmt = info.get("format") if isinstance(info, dict) else None
-            if fmt not in MANTISSA_BITS:
-                continue
-            keys = [
-                k
-                for k in weight_map
-                if k.endswith(f"layers.{layer}.{name}.weight") and not any(s in k for s in SKIP)
-            ]
-            if len(keys) != 1:
-                print(f"layer {layer} {name}: {len(keys)} matching tensors, skipped")
-                continue
-            f = weight_map[keys[0]]
-            if f not in handles:
-                handles[f] = safe_open(os.path.join(d, f), "pt")
-            w = handles[f].get_tensor(keys[0])
-            mats = w if w.dim() == 3 else w.unsqueeze(0)  # experts: [E, out, in]
-            bad = 0
-            for m in mats:
-                w_in_out = m.t().contiguous()
-                bad += int(not torch.equal(on_grid(w_in_out, MANTISSA_BITS[fmt]), w_in_out.float()))
-            checked += 1
-            if bad:
-                off += 1
-                print(f"OFF GRID: layer {layer} {name} ({fmt}), {bad} of {len(mats)} matrices")
+    for name, fmt in weights:
+        f = weight_map[name]
+        if f not in handles:
+            handles[f] = safe_open(os.path.join(d, f), "pt")
+        w = handles[f].get_tensor(name)
+        mats = w if w.dim() == 3 else w.unsqueeze(0)  # experts: [E, out, in]
+        bad = 0
+        for m in mats:
+            w_in_out = m.t().contiguous()
+            bad += int(not torch.equal(on_grid(w_in_out, MANTISSA_BITS[fmt]), w_in_out.float()))
+        checked += 1
+        if bad:
+            off += 1
+            print(f"OFF GRID: {name} ({fmt}), {bad} of {len(mats)} matrices")
     print(f"{checked} matrices checked, {off} off the grid")
     return 0 if off == 0 and checked > 0 else 1
 

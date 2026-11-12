@@ -7,10 +7,14 @@ round trip through a device's DRAM is exact (skipped when no device opens).
 
 Also runs as a script (python tests/test_ttnn_pack.py), for an environment without pytest."""
 
+import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import torch
+from safetensors.torch import save_file
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -102,6 +106,44 @@ def test_dram_round_trip():
             assert torch.equal(packed(q, dtype(fmt), dev), q), fmt
     finally:
         ttnn.close_device(dev)
+
+
+def test_checker_covers_numbered_experts_and_quantized_head():
+    tool = Path(__file__).resolve().parents[1] / "tools/pack_tensix.py"
+    for fmt, valid, bad in [("bfp4", 1.25, 1.125), ("bfp8", 1.015625, 1.0078125)]:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            head_name = "model.embed_tokens.weight"
+            tensors = {
+                f"model.layers.0.mlp.experts.{i}.{projection}.weight": torch.ones(
+                    32, 32, dtype=torch.bfloat16
+                )
+                for i in range(2)
+                for projection in ("gate_proj", "up_proj")
+            }
+            tensors[head_name] = torch.full((32, 32), valid, dtype=torch.bfloat16)
+            manifest = {
+                "layers": {"0": {"mlp.experts.gate_up_proj": {"format": "bfp4"}}},
+                "lm_head": fmt,
+                "lm_head_tensor": head_name,
+            }
+            (directory / "quant4.json").write_text(json.dumps(manifest))
+            (directory / "model.safetensors.index.json").write_text(
+                json.dumps({"weight_map": {key: "weights.safetensors" for key in tensors}})
+            )
+            for broken in (False, True):
+                if broken:
+                    tensors[head_name][0, 0] = bad
+                save_file(tensors, str(directory / "weights.safetensors"))
+                result = subprocess.run(
+                    [sys.executable, "-I", str(tool), str(directory), "--layers", "0"],
+                    capture_output=True,
+                    text=True,
+                )
+                assert result.returncode == int(broken), result.stdout + result.stderr
+                assert "5 matrices packed with TT-NN" in result.stdout
+                if broken:
+                    assert f"MISMATCH {head_name}" in result.stdout
 
 
 if __name__ == "__main__":

@@ -131,7 +131,8 @@ def test_export(setup, tmp_path, family, variant):
         text=True,
     )
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "14 matrices checked, 0 off the grid" in r.stdout
+    expected = 14 + (v.of("lm_head") in ("bfp4", "bfp8"))
+    assert f"{expected} matrices checked, 0 off the grid" in r.stdout
 
     # the manifest
     man = json.loads((out / "quant4.json").read_text())

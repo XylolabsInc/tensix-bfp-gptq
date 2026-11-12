@@ -162,6 +162,12 @@ python tools/verify_grid.py EXPORT_DIR             # torch only: every listed ma
 python tools/pack_tensix.py EXPORT_DIR [--device]  # ttnn: pack each matrix, unpack, compare
 ```
 
+Both tools check separately stored numbered experts and a quantized LM head. The head uses
+`lm_head_tensor` from manifest format 2, or `lm_head.weight` in older manifests. `--layers` limits
+the layer projections; the quantized head is still checked. A missing or ambiguous declared
+projection fails the check. The tools check each matrix in its stored row order; they do not
+apply row permutations.
+
 ### KL divergence
 
 ```

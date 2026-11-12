@@ -24,6 +24,7 @@ Exit status 0 when every packed matrix unpacks to its stored values, 1 otherwise
 import argparse
 import json
 import os
+import re
 import sys
 
 import torch
@@ -34,10 +35,62 @@ DTYPES = {"bfp4": ttnn.bfloat4_b, "bfp8": ttnn.bfloat8_b}
 SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
+def quantized_weights(manifest, weight_map, layers=None):
+    """Every declared quantized tensor, including numbered experts and the LM head."""
+    for layer, projections in manifest.get("layers", {}).items():
+        if layers is not None and layer not in layers:
+            continue
+        for name, record in projections.items():
+            fmt = record.get("format") if isinstance(record, dict) else None
+            if fmt not in ("bfp4", "bfp8"):
+                continue
+            suffix = f"layers.{layer}.{name}.weight"
+            keys = [k for k in weight_map if k.endswith(suffix) and not any(s in k for s in SKIP)]
+            if not keys and ".experts." in name:
+                module, projection = name.rsplit(".experts.", 1)
+
+                def numbered(part):
+                    pattern = re.compile(
+                        rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
+                        rf"\.experts\.(\d+)\.{re.escape(part)}\.weight$"
+                    )
+                    matches = [
+                        (int(m.group(1)), k)
+                        for k in weight_map
+                        if (m := pattern.search(k)) and not any(s in k for s in SKIP)
+                    ]
+                    if len({i for i, _ in matches}) != len(matches):
+                        raise ValueError(f"projection {layer}/{name} has ambiguous experts")
+                    return sorted(matches)
+
+                matches = numbered(projection)
+                if matches:
+                    yield from ((k, fmt) for _, k in matches)
+                    continue
+                if projection == "gate_up_proj":
+                    gates, ups = numbered("gate_proj"), numbered("up_proj")
+                    if gates and [i for i, _ in gates] == [i for i, _ in ups]:
+                        for (_, gate), (_, up) in zip(gates, ups):
+                            yield gate, fmt
+                            yield up, fmt
+                        continue
+            if len(keys) != 1:
+                raise ValueError(f"projection {layer}/{name} has no unambiguous tensors")
+            yield keys[0], fmt
+    fmt = manifest.get("lm_head")
+    if fmt in ("bfp4", "bfp8"):
+        name = manifest.get("lm_head_tensor", "lm_head.weight")
+        if not isinstance(name, str) or name not in weight_map:
+            raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
+        yield name, fmt
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("model_dir", nargs="?", default=".")
-    ap.add_argument("--layers", help="comma-separated layer numbers (default: all)")
+    ap.add_argument(
+        "--layers", help="layer numbers to check; the quantized LM head is always checked"
+    )
     ap.add_argument(
         "--device", action="store_true", help="also write each tensor to device 0 and read it back"
     )
@@ -53,50 +106,38 @@ def main():
     manifest = json.load(open(os.path.join(d, "quant4.json")))
     weight_map = json.load(open(os.path.join(d, "model.safetensors.index.json")))["weight_map"]
     want = set(a.layers.split(",")) if a.layers else None
+    weights = list(quantized_weights(manifest, weight_map, want))
     device = ttnn.open_device(device_id=0) if a.device else None
     packed = mismatched = 0
     handles = {}
     try:
-        for layer, projs in manifest["layers"].items():
-            if want and layer not in want:
-                continue
-            for name, info in projs.items():
-                fmt = info.get("format") if isinstance(info, dict) else None
-                if fmt not in DTYPES:
-                    continue
-                keys = [
-                    k
-                    for k in weight_map
-                    if k.endswith(f"layers.{layer}.{name}.weight") and not any(s in k for s in SKIP)
-                ]
-                if len(keys) != 1:
-                    continue
-                f = weight_map[keys[0]]
-                if f not in handles:
-                    handles[f] = safe_open(os.path.join(d, f), "pt")
-                full = handles[f].get_tensor(keys[0])
-                mats = full if full.dim() == 3 else full.unsqueeze(0)  # experts: [E, out, in]
-                use = a.as_fmt or fmt
-                for e, m in enumerate(mats):
-                    w = m.t().contiguous()  # [in, out]: the layout TT-NN's matmul reads
-                    tag = f"{keys[0]}.{e}" if full.dim() == 3 else keys[0]
-                    cache = os.path.join(a.cache_dir, f"{tag}.{use}") if a.cache_dir else None
-                    t = ttnn.as_tensor(
-                        w,
-                        dtype=DTYPES[use],
-                        layout=ttnn.TILE_LAYOUT,
-                        device=device,
-                        memory_config=ttnn.DRAM_MEMORY_CONFIG if device else None,
-                        cache_file_name=cache,
+        for name, fmt in weights:
+            f = weight_map[name]
+            if f not in handles:
+                handles[f] = safe_open(os.path.join(d, f), "pt")
+            full = handles[f].get_tensor(name)
+            mats = full if full.dim() == 3 else full.unsqueeze(0)  # experts: [E, out, in]
+            use = a.as_fmt or fmt
+            for e, m in enumerate(mats):
+                w = m.t().contiguous()  # [in, out]: the layout TT-NN's matmul reads
+                tag = f"{name}.{e}" if full.dim() == 3 else name
+                cache = os.path.join(a.cache_dir, f"{tag}.{use}") if a.cache_dir else None
+                t = ttnn.as_tensor(
+                    w,
+                    dtype=DTYPES[use],
+                    layout=ttnn.TILE_LAYOUT,
+                    device=device,
+                    memory_config=ttnn.DRAM_MEMORY_CONFIG if device else None,
+                    cache_file_name=cache,
+                )
+                back = ttnn.to_torch(t)
+                packed += 1
+                if not torch.equal(back.float(), w.float()):
+                    mismatched += 1
+                    diff = (back.float() != w.float()).sum().item()
+                    print(
+                        f"MISMATCH {tag} ({fmt} packed as {use}): {diff} of {w.numel()} values differ"
                     )
-                    back = ttnn.to_torch(t)
-                    packed += 1
-                    if not torch.equal(back.float(), w.float()):
-                        mismatched += 1
-                        diff = (back.float() != w.float()).sum().item()
-                        print(
-                            f"MISMATCH {tag} ({fmt} packed as {use}): {diff} of {w.numel()} values differ"
-                        )
     finally:
         if device is not None:
             ttnn.close_device(device)
