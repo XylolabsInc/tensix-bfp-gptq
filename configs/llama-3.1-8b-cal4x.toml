@@ -1,0 +1,20 @@
+# Llama 3.1 8B with four times the calibration tokens of llama-3.1-8b.toml: 262,144 tokens from the
+# six texts below (an even share each, a short text's remainder to the next). With Llama's tokenizer
+# that is 117,760 English and 144,384 Korean tokens. It needs `python -m tensix_bfp.data fetch
+# --extra`. The published Llama-3.1-8B-Instruct BFP4 export (every linear layer bfloat4_b) was made
+# with this config.
+[model]
+name = "llama-3.1-8b-cal4x"
+family = "llama"
+[calib]
+texts = ["calib_en", "calib_ko", "calib2_en", "calib2_ko", "calib3_en", "calib3_ko"]
+tokens = 262144
+seq = 1024
+[eval]
+tokens = 1024
+chunks = 4
+formats = ["raw", "chat"]
+[quant]
+damp = 0.1
+prep_cache = false
+variants = ["all=bfp4,lm_head=bf16,gptq"]

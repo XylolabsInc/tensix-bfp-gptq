@@ -82,7 +82,7 @@ For tt-metal older than v0.83, `soc_descriptor.yaml` must sit beside the simulat
 | `gemma4` | Gemma 4 E2B, E4B, 31B | `gemma4-e2b`, `gemma4-e2b-qat`, `gemma4-e4b`, `gemma4-31b` |
 | `gemma4_unified` | Gemma 4 12B | `gemma4-12b` |
 | `ministral3` | Ministral 3 (text model, from a text-only copy) | `ministral3-14b` |
-| `llama` | Llama 3.x | `llama-3.1-8b` |
+| `llama` | Llama 3.x | `llama-3.1-8b`, `llama-3.1-8b-cal4x` |
 
 Each config in `configs/` names the model, its family, the calibration and evaluation texts, the
 GPTQ damping and the variants studied for it.
