@@ -16,13 +16,20 @@
   eval_ko     KO_EVAL articles, characters 0 .. 3,500 of each       joined by a blank line
   calib2_ko   KO_CALIB articles, characters 3,500 .. 12,500 of each joined by a blank line
 
+Two more calibration texts, fetched only with --extra, for the four-times calibration of
+configs/llama-3.1-8b-cal4x.toml (262,144 tokens):
+
+  calib3_en   WikiText-2 train, rows from 5000                      until >= 600,000 characters
+  calib3_ko   KO_CALIB3 articles, characters 0 .. 9,000 of each      joined by a blank line
+
 WikiText-2 is CC BY-SA 3.0 and GFDL, Korean Wikipedia CC BY-SA 4.0 (most text also GFDL); the
 texts are not shipped with this package. The SHA-256 of each file as used for the published
 exports is in SHA256: WikiText-2 fetches reproduce it, while Wikipedia articles change over time,
 so a fresh Korean fetch may differ (and an export made from it too).
 
-  python -m tensix_bfp.data fetch [--data DIR]    download the six texts (skips existing files)
-  python -m tensix_bfp.data check [--data DIR]    compare the files with SHA256
+  python -m tensix_bfp.data fetch [--data DIR] [--extra]   download the six texts (and the two
+                                                           extra ones; skips existing files)
+  python -m tensix_bfp.data check [--data DIR] [--extra]   compare the files with SHA256
 
 DIR defaults to $TENSIX_BFP_DATA or ~/.cache/tensix_bfp/data.
 """
@@ -40,6 +47,11 @@ from pathlib import Path
 UA = {"User-Agent": "tensix-bfp-gptq/0.1 (calibration text fetch)"}
 KO_CALIB = ["광합성", "한글", "김치", "도서관", "컴퓨터", "서울특별시", "태양계", "축구", "조선"]
 KO_EVAL = ["세종 (조선)", "인공지능", "지구", "부산광역시", "커피", "고려", "피아노", "바다"]
+# the extra calibration articles: none of KO_CALIB or KO_EVAL
+KO_CALIB3 = (
+    "물리학 화학 생물학 수학 철학 경제학 음악 미술 문학 건축 의학 농업 기후 대한민국 한국어 "
+    "불교 올림픽 자동차 철도 전기 인터넷 영화 우주 공룡 화산 쌀 한라산 한강 백제 신라"
+).split()
 CHARS = 3500  # per Korean article: its first paragraphs
 SHA256 = {
     "calib_en": "88fa1a10cacc84b916b9d730259190ade358373a9797cfdb96049e17762529d6",
@@ -49,6 +61,10 @@ SHA256 = {
     "eval_en": "cb700e96eb44e3c39a4dd0cfd811896a7eef67cbf8c1d2c4b5739a3449a34386",
     "eval_ko": "f7b227bd69c84083ae51f456a1c38a859d3d3fa88416383e1d10349271e23328",
 }
+SHA256_EXTRA = {
+    "calib3_en": "12ee354068e36c455e292c235b381ce8ac1f1b01ea437e7f666c390574074c2c",
+    "calib3_ko": "711cb91be126cc9a054bc195fe41aea8df06b72cd5a55b3f7de8ed818e2d2d96",
+}
 
 
 def default_dir():
@@ -56,14 +72,15 @@ def default_dir():
 
 
 def get(url, tries=6):
-    """JSON from url, retried with a growing pause on HTTP 429."""
+    """JSON from url, retried with a growing pause on HTTP 429 and on a gateway error (502, 503,
+    504), which the datasets server returns now and then."""
     for n in range(tries):
         try:
             req = urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
-            if e.code != 429 or n == tries - 1:
+            if e.code not in (429, 502, 503, 504) or n == tries - 1:
                 raise
             time.sleep(5 * (n + 1))
     return None
@@ -123,16 +140,20 @@ JOBS = {
     "calib2_en": lambda: wikitext("train", 110000, off=1000),
     "calib2_ko": lambda: kowiki(KO_CALIB, start=CHARS, chars=9000),
 }
+JOBS_EXTRA = {
+    "calib3_en": lambda: wikitext("train", 600000, off=5000),
+    "calib3_ko": lambda: kowiki(KO_CALIB3, chars=9000),
+}
 
 
 def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def fetch(d):
+def fetch(d, extra=False):
     d = Path(d)
     d.mkdir(parents=True, exist_ok=True)
-    for name, fn in JOBS.items():
+    for name, fn in {**JOBS, **(JOBS_EXTRA if extra else {})}.items():
         p = d / f"{name}.txt"
         if not p.exists():
             print(f"fetching {name}", flush=True)
@@ -140,10 +161,10 @@ def fetch(d):
         print(f"{name}: {len(p.read_text(encoding='utf-8'))} characters", flush=True)
 
 
-def check(d):
-    """Whether every text matches SHA256; prints one line per text."""
+def check(d, extra=False):
+    """Whether every text matches SHA256 (and SHA256_EXTRA with extra); prints one line per text."""
     ok = True
-    for name, want in SHA256.items():
+    for name, want in {**SHA256, **(SHA256_EXTRA if extra else {})}.items():
         p = Path(d) / f"{name}.txt"
         got = sha256(p) if p.exists() else None
         state = "missing" if got is None else ("ok" if got == want else "DIFFERS")
@@ -156,12 +177,16 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("what", choices=["fetch", "check"])
     ap.add_argument("--data", default=None, help="the texts' directory")
+    ap.add_argument(
+        "--extra",
+        action="store_true",
+        help="also the two texts of the four-times calibration (configs/llama-3.1-8b-cal4x.toml)",
+    )
     a = ap.parse_args(argv)
     d = Path(a.data) if a.data else default_dir()
     if a.what == "fetch":
-        fetch(d)
-        return 0 if check(d) else 1
-    return 0 if check(d) else 1
+        fetch(d, a.extra)
+    return 0 if check(d, a.extra) else 1
 
 
 if __name__ == "__main__":

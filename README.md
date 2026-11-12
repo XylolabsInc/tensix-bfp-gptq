@@ -92,9 +92,12 @@ GPTQ damping and the variants studied for it.
 ### Calibration texts
 
 ```
-python -m tensix_bfp.data fetch [--data DIR]   # default $TENSIX_BFP_DATA or ~/.cache/tensix_bfp/data
-python -m tensix_bfp.data check [--data DIR]
+python -m tensix_bfp.data fetch [--data DIR] [--extra]   # default $TENSIX_BFP_DATA or ~/.cache/tensix_bfp/data
+python -m tensix_bfp.data check [--data DIR] [--extra]
 ```
+
+`--extra` also fetches two more calibration texts, `calib3_en` and `calib3_ko`, which
+`configs/llama-3.1-8b-cal4x.toml` uses for four times the calibration tokens (262,144).
 
 The texts are WikiText-2 (train and test; CC BY-SA 3.0 and GFDL) and extracts of Korean Wikipedia
 articles (CC BY-SA 4.0, most text also GFDL). Both are downloaded from their sources, not shipped
