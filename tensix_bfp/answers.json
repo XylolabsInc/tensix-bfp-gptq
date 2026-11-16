@@ -12,9 +12,6 @@
     },
     "MuseGlimmerForConditionalGeneration": {
       "reasoning_strength": "low"
-    },
-    "HyperCLOVAXForCausalLM": {
-      "skip_reasoning": true
     }
   },
   "max_new_by_arch": {
@@ -31,9 +28,6 @@
     },
     "MuseGlimmerForConditionalGeneration": {
       "reasoning_strength": "medium"
-    },
-    "HyperCLOVAXForCausalLM": {
-      "force_reasoning": true
     }
   },
   "items": [
