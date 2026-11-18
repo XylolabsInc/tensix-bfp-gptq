@@ -209,6 +209,11 @@ pytest                           # the ttnn tests skip without ttnn or a chip
 python tests/test_ttnn_pack.py   # the ttnn tests alone
 ```
 
+## Development
+
+`DEVELOPMENT.md` says how this repository is developed from public material only and how a
+release is checked before it is published. `ORIGINS.md` records where every file comes from.
+
 ## License
 
 Apache-2.0, see `LICENSE`. This is an independent project, not affiliated with Tenstorrent.

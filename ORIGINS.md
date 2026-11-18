@@ -51,5 +51,5 @@ transformers and ttnn.
 | `configs/*.toml` (15 files) | ours | 1-6 each | 0 | the export configurations of the published checkpoints |
 | `assets/xylolabs-lockup.svg`, `assets/xylolabs-lockup-dark.svg` | ours | 1 each | 0 | Xylolabs' logo |
 
-Documentation and other files: `README.md`, `AGENTS.md`, `CLAUDE.md`, `NOTICE`, `.gitignore` and this file are ours;
-`LICENSE` is the text of the Apache License, Version 2.0.
+Documentation and other files: `README.md`, `AGENTS.md`, `CLAUDE.md`, `DEVELOPMENT.md`, `NOTICE`, `.gitignore` and this
+file are ours; `LICENSE` is the text of the Apache License, Version 2.0.
