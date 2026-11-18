@@ -19,6 +19,7 @@ that TT-NN packs as they are. The README covers the method and every command.
 | `tensix_bfp/data.py` | the calibration texts: sources, slices and SHA-256 |
 | `tensix_bfp/kl.py`, `answers.py`, `answers.json` | the KL and answer checks |
 | `tensix_bfp/ministral3.py` | Ministral 3's text-only copy |
+| `tensix_bfp/packed.py` | packed checkpoints (TT-NN tile bytes): pack, verify, unpack, load; standalone, also shipped in each Hugging Face model repo |
 | `configs/*.toml` | one config per model |
 | `tools/pack_tensix.py`, `tools/verify_grid.py` | export checks, also shipped in each Hugging Face model repo |
 | `tests/` | the pytest suite; `test_ttnn_pack.py` needs ttnn and a chip or ttsim |
@@ -31,8 +32,8 @@ pytest
 ruff check . && ruff format --check .
 ```
 
-A change to `bfp.py`, `gptq.py`, `export.py` or `tools/` also runs the ttnn tests: Python 3.12 with
-`.[ttnn]` and ttsim, set up as the README's Install section shows, then
+A change to `bfp.py`, `gptq.py`, `export.py`, `packed.py` or `tools/` also runs the ttnn tests:
+Python 3.12 with `.[ttnn]` and ttsim, set up as the README's Install section shows, then
 `python tests/test_ttnn_pack.py`.
 
 ## Rules
@@ -43,6 +44,10 @@ A change to `bfp.py`, `gptq.py`, `export.py` or `tools/` also runs the ttnn test
 - **Published exports stay reproducible.** Don't change a default that alters an existing variant's
   output (`--method`, `--bfp8`, the damping, calibration slicing, `--manifest-format`). Add an
   option and keep the old behavior as the default.
+- **The packed format is fixed.** A file `packed.py` writes must decode the same in every later
+  release. A change to the bytes or to `tensix_pack.json` needs a new `format_version`, with the
+  old version still read. `packed.py` imports only torch and safetensors, nothing from the
+  package.
 - **Calibration texts are never committed.** They are CC BY-SA and fetched by `tensix_bfp.data`.
   Record a new source there with its SHA-256.
 - **A new model family** needs a config in `configs/`, its projection names in `export.py`, a tiny

@@ -2,8 +2,9 @@
 # Copyright 2026 Xylolabs
 """This package's rounding against TT-NN's own packer (skipped without ttnn): for bfloat4_b and
 bfloat8_b, ttnn.as_tensor rounds a bf16 matrix exactly as bfp() does, values already on the grid
-(plain or exponent-searched) pack unchanged, bfloat4_b values pack unchanged as bfloat8_b, and a
-round trip through a device's DRAM is exact (skipped when no device opens).
+(plain or exponent-searched) pack unchanged, bfloat4_b values pack unchanged as bfloat8_b, a round
+trip through a device's DRAM is exact (skipped when no device opens), and tensix_bfp.packed writes
+the tile bytes ttnn writes.
 
 Also runs as a script (python tests/test_ttnn_pack.py), for an environment without pytest."""
 
@@ -19,6 +20,7 @@ from safetensors.torch import save_file
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tensix_bfp.bfp import EXP_OFFSETS, bfp, bfp_search, bfp_weight  # noqa: E402
+from tensix_bfp.packed import decode, encode  # noqa: E402
 
 try:
     import ttnn
@@ -85,6 +87,26 @@ def test_grid_values_pack_unchanged():
             assert torch.equal(packed(q, dtype(fmt)), q), fmt
     q4 = bfp_search(sample(2), 3, EXP_OFFSETS)
     assert torch.equal(packed(q4, ttnn.bfloat8_b), q4)
+
+
+def test_packed_tiles_are_ttnn_bytes():
+    """tensix_bfp.packed writes the bytes stock ttnn keeps for a tile-layout tensor: they appear
+    whole in TT-NN's weight cache file, and decode to the values ttnn.to_torch returns."""
+    for fmt, _ in FORMATS:
+        w = sample(4)
+        w[0, :20] = 0.0  # an all-zero face row
+        w[1, 3] = -0.0
+        ours = encode(w, fmt, exact=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            t = ttnn.as_tensor(
+                w, dtype(fmt), layout=ttnn.TILE_LAYOUT, cache_file_name=str(Path(tmp) / "w")
+            )
+            files = sorted(Path(tmp).iterdir())
+            assert len(files) == 1, f"{fmt}: cache files {files}"
+            blob = files[0].read_bytes()
+        assert blob.find(bytes(ours.flatten().tolist())) >= 0, fmt
+        back = ttnn.to_torch(t).float()
+        assert torch.equal(decode(ours, fmt, tuple(w.shape)).float(), back), fmt
 
 
 class Skipped(Exception):

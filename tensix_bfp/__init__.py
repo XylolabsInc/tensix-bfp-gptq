@@ -5,7 +5,8 @@ NPUs (Wormhole, Blackhole). Not affiliated with or endorsed by Tenstorrent.
 
 Modules: bfp (the block floating point grids), gptq (GPTQ onto them), export (the checkpoint
 export), data (the calibration and evaluation texts), kl (KL divergence against the bf16 model),
-answers (the answer check), ministral3 (Ministral 3's text-only copy).
+answers (the answer check), ministral3 (Ministral 3's text-only copy), packed (packed checkpoints:
+TT-NN tile bytes).
 """
 
 __version__ = "0.1.0"

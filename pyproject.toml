@@ -40,6 +40,7 @@ test = ["pytest>=9"]
 tensix-bfp-export = "tensix_bfp.export:main"
 tensix-bfp-kl = "tensix_bfp.kl:main"
 tensix-bfp-answers = "tensix_bfp.answers:main"
+tensix-bfp-packed = "tensix_bfp.packed:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["tensix_bfp"]

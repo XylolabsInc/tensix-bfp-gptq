@@ -169,6 +169,36 @@ the layer projections; the quantized head is still checked. A missing or ambiguo
 projection fails the check. The tools check each matrix in its stored row order; they do not
 apply row permutations.
 
+### Packed checkpoints
+
+A packed checkpoint, as the Hugging Face model repos carry it, stores each BFP4 or BFP8 matrix as
+the tile bytes TT-NN keeps for it, 4.5 or 8.5 bits a weight, instead of bf16 values on the grid.
+`tensix_bfp/packed.py` reads and writes it with torch and safetensors only. It also works copied
+on its own, and each model repo ships it.
+
+```
+python -m tensix_bfp.packed verify PACKED_DIR             # decode and check every packed tensor
+python -m tensix_bfp.packed unpack PACKED_DIR OUT_DIR     # the bf16 checkpoint, for transformers
+python -m tensix_bfp.packed pack EXPORT_DIR OUT_DIR [--at-pack REGEX=FMT]
+```
+
+In Python, `load_bf16(PACKED_DIR)` returns `{name: tensor}` for `load_state_dict`, and
+`iter_bf16` yields the tensors one at a time.
+
+A packed tensor keeps its name and is stored as `U8 [n_tiles, 576]` (BFP4) or `[n_tiles, 1088]`
+(BFP8), with a leading experts axis for a 3-D tensor. Each 32x32 tile holds 64 shared exponents,
+one for each 16-value row of its four 16x16 faces, then the values: a sign and a 3-bit or 7-bit
+magnitude each. `tensix_pack.json` records each packed tensor's format, shapes, orientation and
+the SHA-256 of its decoded bf16 values. Every other tensor is stored as it was. The docstring of
+`packed.py` gives the byte layout in full.
+
+Decoding gives the bf16 export bit for bit, except that a `-0.0` loads as `+0.0`: TT-NN stores
+zeros with sign 0. `verify` checks each tensor's hash, and that its bytes are the ones TT-NN
+writes for its values. `pack` packs the matrices that `quant4.json` lists, transposed to TT-NN's
+`[in, out]`; matrices whose sides are not multiples of 32 stay bf16. `--at-pack` also rounds the
+bf16 tensors whose names match, as TT-NN rounds them when it packs them (for example a drafter's
+`mtp.*` matrices), and records that in `tensix_pack.json`.
+
 ### KL divergence
 
 ```
