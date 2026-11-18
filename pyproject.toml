@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tensix-bfp-gptq"
-version = "0.1.0"
+version = "0.2.0"
 description = "Quantize Hugging Face LLMs to TT-NN's BFP4/BFP8 formats (bfloat4_b, bfloat8_b) with GPTQ, for Tenstorrent Tensix NPUs"
 readme = "README.md"
 license = "Apache-2.0"
@@ -46,7 +46,18 @@ tensix-bfp-packed = "tensix_bfp.packed:main"
 packages = ["tensix_bfp"]
 
 [tool.hatch.build.targets.sdist]
-include = ["tensix_bfp", "configs", "tools", "tests", "README.md", "LICENSE", "NOTICE"]
+include = [
+  "tensix_bfp",
+  "configs",
+  "tools",
+  "tests",
+  "README.md",
+  "CHANGELOG.md",
+  "DEVELOPMENT.md",
+  "ORIGINS.md",
+  "LICENSE",
+  "NOTICE",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
