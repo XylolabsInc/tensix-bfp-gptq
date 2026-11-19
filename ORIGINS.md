@@ -25,12 +25,17 @@ transformers and ttnn.
    (`tests/test_data.py`), and Python's difflib ratio against the closest files is at most 0.24 (`tensix_bfp/gptq.py`
    against IST-DASLab/gptq's `gptq.py`, which implements the same algorithm).
 3. **When.** On 2026-11-17, on the tree of v0.1.0 (`e889353`), which this file joins unchanged.
+4. **v0.2.0.** On 2026-11-19, the files v0.2.0 adds or changes (`tensix_bfp/packed.py`,
+   `tests/test_packed.py`, `tests/test_ttnn_pack.py`, `tensix_bfp/__init__.py`, `pyproject.toml`) were
+   checked against the same five trees at the same versions: the line comparison as in 1, and the share
+   of each Python file's distinct 10-token sequences (comments and docstrings dropped) found in any one
+   upstream Python, C, C++ or shell file, at most 1.5 % (`tests/test_ttnn_pack.py`).
 
 ## Files
 
 | File | Class | Lines checked | Lines found upstream | Notes |
 |---|---|---|---|---|
-| `pyproject.toml` | ours | 23 | 5 | package metadata |
+| `pyproject.toml` | ours | 25 | 5 | package metadata |
 | `tensix_bfp/__init__.py` | ours | 6 | 1 | package marker |
 | `tensix_bfp/answers.py` | ours | 377 | 10 | the answer check (answers.json's items, greedy, against the bf16 model) |
 | `tensix_bfp/answers.json` | ours | 47 | 0 | the answer-check items, written for this repository |
@@ -40,16 +45,18 @@ transformers and ttnn.
 | `tensix_bfp/gptq.py` | ours | 93 | 1 | GPTQ (Frantar et al., 2022, arXiv:2210.17323), implemented from the paper |
 | `tensix_bfp/kl.py` | ours | 58 | 2 | mean KL, top-1 and top-5 against the bf16 model; its sequences are cut as llama.cpp's perplexity tool cuts them (the behavior, not its code) |
 | `tensix_bfp/ministral3.py` | ours | 39 | 3 | Ministral 3's release to a text-only checkpoint |
+| `tensix_bfp/packed.py` | ours | 281 | 5 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`) |
 | `tests/test_bfp.py` | ours | 35 | 2 |  |
 | `tests/test_check_tools.py` | ours | 81 | 6 |  |
 | `tests/test_data.py` | ours | 20 | 1 |  |
 | `tests/test_export_tiny.py` | ours | 74 | 7 |  |
 | `tests/test_gptq.py` | ours | 39 | 4 |  |
-| `tests/test_ttnn_pack.py` | ours | 80 | 7 | bfp.py against stock ttnn's packer |
+| `tests/test_packed.py` | ours | 176 | 15 |  |
+| `tests/test_ttnn_pack.py` | ours | 93 | 9 | bfp.py and packed.py against stock ttnn's packer |
 | `tools/pack_tensix.py` | ours | 67 | 4 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip |
 | `tools/verify_grid.py` | ours | 67 | 3 | checks that every quantized matrix is on its grid |
 | `configs/*.toml` (15 files) | ours | 1-6 each | 0 | the export configurations of the published checkpoints |
 | `assets/xylolabs-lockup.svg`, `assets/xylolabs-lockup-dark.svg` | ours | 1 each | 0 | Xylolabs' logo |
 
-Documentation and other files: `README.md`, `AGENTS.md`, `CLAUDE.md`, `DEVELOPMENT.md`, `NOTICE`, `.gitignore` and this
-file are ours; `LICENSE` is the text of the Apache License, Version 2.0.
+Documentation and other files: `README.md`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `DEVELOPMENT.md`, `NOTICE`, `.gitignore`
+and this file are ours; `LICENSE` is the text of the Apache License, Version 2.0.
