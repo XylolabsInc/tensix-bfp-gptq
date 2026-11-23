@@ -47,7 +47,7 @@ Only then are the commits and the tag pushed.
 
 | Date | Change | Specification (name, MD5) | Upstream | Checks |
 |---|---|---|---|---|
-| 2026-11-24 | feat(tools): apply a declared row order of a fused q/k/v projection | 06-qkv-row-order.md, fe3716d0867b828689cf9e6bd879cc5d | tt-metal/TT-NN v0.81.1 | pytest (73 passed, 1 skipped), ruff check and format |
+| 2026-11-24 | feat(tools): apply a declared row order of a fused q/k/v projection | 06-qkv-row-order.md, fe3716d0867b828689cf9e6bd879cc5d | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (73 passed, 1 skipped), test_ttnn_pack.py on ttsim (6 tests passed; pytest with ttnn: 79 passed), ruff check and format |
 
 ## History
 
