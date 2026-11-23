@@ -168,9 +168,10 @@ Both tools check separately stored numbered experts and a quantized LM head. The
 the layer projections; the quantized head is still checked. A missing or ambiguous declared
 projection fails the check. Both tools also check every `bfp4` or `bfp8` matrix listed under
 `global_linears` in `quant4.json` (a projection outside the decoder layers, such as Gemma 4's
-`per_layer_model_projection`); `--layers` does not limit them. The tools check each matrix in its
-stored row order, except a fused q/k/v projection when `quant4.json` has a top-level
-`qkv_row_order`.
+`per_layer_model_projection`); `--layers` does not limit them. A tensor the manifest names more
+than once (as a global linear and as the LM head, say) is checked and counted once. The tools
+check each matrix in its stored row order, except a fused q/k/v projection when `quant4.json`
+has a top-level `qkv_row_order`.
 
 Some exports store the fused `self_attn.q_k_v_proj` in the base model's row order while its values lie
 on the block-float grid only in another row order. `qkv_row_order` names that order; the one known

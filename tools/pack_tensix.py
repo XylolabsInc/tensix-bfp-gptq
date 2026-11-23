@@ -42,7 +42,16 @@ SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
 def quantized_weights(manifest, weight_map, layers=None):
-    """Every declared quantized tensor, including numbered experts, the LM head and global linears."""
+    """Every declared quantized tensor once, whichever sections of the manifest name it."""
+    seen = set()
+    for name, fmt in declared_weights(manifest, weight_map, layers):
+        if name not in seen:
+            seen.add(name)
+            yield name, fmt
+
+
+def declared_weights(manifest, weight_map, layers=None):
+    """Declared quantized tensors: layer projections, the LM head and global linears."""
     for layer, projections in manifest.get("layers", {}).items():
         if layers is not None and layer not in layers:
             continue

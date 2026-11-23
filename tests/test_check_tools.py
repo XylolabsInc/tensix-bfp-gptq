@@ -332,3 +332,14 @@ def test_layers_option_keeps_global_linears(tmp_path):
     result = verify(tmp_path, "--layers", "5")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "1 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_global_linear_named_twice_is_counted_once(tmp_path):
+    global_checkpoint(tmp_path)
+    manifest = json.loads((tmp_path / "quant4.json").read_text())
+    manifest["lm_head"] = "bfp4"
+    manifest["lm_head_tensor"] = GLOBAL
+    (tmp_path / "quant4.json").write_text(json.dumps(manifest))
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 matrices checked, 0 off the grid" in result.stdout
