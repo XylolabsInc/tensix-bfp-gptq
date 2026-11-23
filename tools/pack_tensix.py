@@ -11,6 +11,9 @@ because every value already sits on the format's grid. With --device the packed 
 to a Tensix device's DRAM and back. With --cache-dir each packed tensor is written as a TT-NN
 weight cache file that `ttnn.as_tensor(..., cache_file_name=...)` loads later without re-packing.
 
+A top-level `qkv_row_order` in `quant4.json` names a row order (see row_order.py) that is applied to
+each fused `self_attn.q_k_v_proj` before it is packed.
+
 Needs ttnn (github.com/tenstorrent/tt-metal), torch and safetensors.
 
 Expert tensors stored 3-D ([experts, out, in]) are packed one expert matrix at a time. With
@@ -30,6 +33,9 @@ import sys
 import torch
 import ttnn
 from safetensors import safe_open
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import row_order  # noqa: E402
 
 DTYPES = {"bfp4": ttnn.bfloat4_b, "bfp8": ttnn.bfloat8_b}
 SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
@@ -104,6 +110,8 @@ def main():
     a = ap.parse_args()
     d = a.model_dir
     manifest = json.load(open(os.path.join(d, "quant4.json")))
+    order = row_order.check_declared(manifest)
+    config = row_order.load_config(d, order)
     weight_map = json.load(open(os.path.join(d, "model.safetensors.index.json")))["weight_map"]
     want = set(a.layers.split(",")) if a.layers else None
     weights = list(quantized_weights(manifest, weight_map, want))
@@ -119,6 +127,7 @@ def main():
             mats = full if full.dim() == 3 else full.unsqueeze(0)  # experts: [E, out, in]
             use = a.as_fmt or fmt
             for e, m in enumerate(mats):
+                m = row_order.reorder(m, name, config, order)
                 w = m.t().contiguous()  # [in, out]: the layout TT-NN's matmul reads
                 tag = f"{name}.{e}" if full.dim() == 3 else name
                 cache = os.path.join(a.cache_dir, f"{tag}.{use}") if a.cache_dir else None

@@ -11,6 +11,9 @@ exponent of the 16. Each value keeps a sign and a 3-bit (BFP4) or 7-bit (BFP8) m
 on the grid when re-quantizing it with its block's exponent gives it back unchanged; then TT-NN's
 packer stores it as it is.
 
+A top-level `qkv_row_order` in `quant4.json` names a row order (see row_order.py) that is applied to
+each fused `self_attn.q_k_v_proj` before it is checked.
+
 Needs only torch and safetensors (no Tenstorrent software).
 
 Usage: python verify_grid.py [MODEL_DIR] [--layers 0,1,...]
@@ -25,6 +28,9 @@ import sys
 
 import torch
 from safetensors import safe_open
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import row_order  # noqa: E402
 
 MANTISSA_BITS = {"bfp4": 3, "bfp8": 7}
 SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
@@ -112,6 +118,8 @@ def main():
     a = ap.parse_args()
     d = a.model_dir
     manifest = json.load(open(os.path.join(d, "quant4.json")))
+    order = row_order.check_declared(manifest)
+    config = row_order.load_config(d, order)
     weight_map = json.load(open(os.path.join(d, "model.safetensors.index.json")))["weight_map"]
     want = set(a.layers.split(",")) if a.layers else None
     weights = list(quantized_weights(manifest, weight_map, want))
@@ -125,6 +133,7 @@ def main():
         mats = w if w.dim() == 3 else w.unsqueeze(0)  # experts: [E, out, in]
         bad = 0
         for m in mats:
+            m = row_order.reorder(m, name, config, order)
             w_in_out = m.t().contiguous()
             bad += int(not torch.equal(on_grid(w_in_out, MANTISSA_BITS[fmt]), w_in_out.float()))
         checked += 1

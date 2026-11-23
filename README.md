@@ -166,8 +166,15 @@ Both tools accept projection names with or without `.weight`, including fused ex
 Both tools check separately stored numbered experts and a quantized LM head. The head uses
 `lm_head_tensor` from manifest format 2, or `lm_head.weight` in older manifests. `--layers` limits
 the layer projections; the quantized head is still checked. A missing or ambiguous declared
-projection fails the check. The tools check each matrix in its stored row order; they do not
-apply row permutations.
+projection fails the check. The tools check each matrix in its stored row order, except a fused
+q/k/v projection when `quant4.json` has a top-level `qkv_row_order`.
+
+Some exports store the fused `self_attn.q_k_v_proj` in the base model's row order while its values lie
+on the block-float grid only in another row order. `qkv_row_order` names that order; the one known
+value is `"spark-llama"`, for Spark-X2.6-4B's exports, and an absent field means no permutation. The
+tools then reorder the projection's rows (q heads, k heads, v heads) before the check or the pack:
+each q and k head puts every rotary pair side by side, with the same permutation for q and k, and the
+v rows stay in place (`tools/row_order.py`). The stored files are not rewritten.
 
 ### Packed checkpoints
 

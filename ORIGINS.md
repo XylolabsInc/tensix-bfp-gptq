@@ -30,6 +30,10 @@ transformers and ttnn.
    checked against the same five trees at the same versions: the line comparison as in 1, and the share
    of each Python file's distinct 10-token sequences (comments and docstrings dropped) found in any one
    upstream Python, C, C++ or shell file, at most 1.5 % (`tests/test_ttnn_pack.py`).
+5. **Row order.** On 2026-11-24, the files the `qkv_row_order` change adds or changes (`tools/row_order.py`,
+   `tools/pack_tensix.py`, `tools/verify_grid.py`, `tests/test_check_tools.py`) were looked up line by line (30
+   characters or more, whitespace-normalized, distinct lines) in tt-metal v0.81.1; the counts are in the table. The
+   comparison with the other four trees is the reviewer's.
 
 ## Files
 
@@ -47,14 +51,15 @@ transformers and ttnn.
 | `tensix_bfp/ministral3.py` | ours | 39 | 3 | Ministral 3's release to a text-only checkpoint |
 | `tensix_bfp/packed.py` | ours | 281 | 5 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`) |
 | `tests/test_bfp.py` | ours | 35 | 2 |  |
-| `tests/test_check_tools.py` | ours | 81 | 6 |  |
+| `tests/test_check_tools.py` | ours | 108 | 4 | adds the row-order tests |
 | `tests/test_data.py` | ours | 20 | 1 |  |
 | `tests/test_export_tiny.py` | ours | 74 | 7 |  |
 | `tests/test_gptq.py` | ours | 39 | 4 |  |
 | `tests/test_packed.py` | ours | 176 | 15 |  |
 | `tests/test_ttnn_pack.py` | ours | 93 | 9 | bfp.py and packed.py against stock ttnn's packer |
-| `tools/pack_tensix.py` | ours | 67 | 4 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip |
-| `tools/verify_grid.py` | ours | 67 | 3 | checks that every quantized matrix is on its grid |
+| `tools/pack_tensix.py` | ours | 73 | 5 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip; applies a declared `qkv_row_order` |
+| `tools/row_order.py` | ours | 45 | 1 | the `spark-llama` row order of a fused q/k/v projection, written to a written spec of our own design from the public Spark-X2.6-4B config and model code; shared by both check tools |
+| `tools/verify_grid.py` | ours | 73 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order` |
 | `configs/*.toml` (15 files) | ours | 1-6 each | 0 | the export configurations of the published checkpoints |
 | `assets/xylolabs-lockup.svg`, `assets/xylolabs-lockup-dark.svg` | ours | 1 each | 0 | Xylolabs' logo |
 

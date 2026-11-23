@@ -12,13 +12,18 @@ import torch
 from safetensors.torch import save_file
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import row_order  # noqa: E402
+import verify_grid  # noqa: E402
 
 
-def checkpoint(directory, tensors, layers, head="bf16", head_name=None):
+def checkpoint(directory, tensors, layers, head="bf16", head_name=None, extra=None):
     save_file(tensors, str(directory / "weights.safetensors"))
     manifest = {"layers": layers, "lm_head": head}
     if head_name is not None:
         manifest["lm_head_tensor"] = head_name
+    manifest.update(extra or {})
     (directory / "quant4.json").write_text(json.dumps(manifest))
     (directory / "model.safetensors.index.json").write_text(
         json.dumps({"weight_map": {name: "weights.safetensors" for name in tensors}})
@@ -186,3 +191,74 @@ def test_numbered_bare_parameters(tmp_path, ambiguous):
     assert result.returncode == int(ambiguous), result.stdout + result.stderr
     if not ambiguous:
         assert "2 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_head_order_sliding():
+    assert row_order.head_order(8, 8) == [0, 4, 1, 5, 2, 6, 3, 7]
+
+
+def test_head_order_partial():
+    assert row_order.head_order(16, 4) == [0, 2, 1, 3, 4, 10, 5, 11, 6, 12, 7, 13, 8, 14, 9, 15]
+
+
+@pytest.mark.parametrize("head_dim,rope_dim", [(256, 64), (256, 256), (128, 32)])
+def test_head_order_is_permutation(head_dim, rope_dim):
+    assert sorted(row_order.head_order(head_dim, rope_dim)) == list(range(head_dim))
+
+
+SPARK_CONFIG = {
+    "head_dim": 8,
+    "num_attention_heads": 2,
+    "num_key_value_heads": 1,
+    "layer_types": ["sliding_attention", "full_attention"],
+    "rope_parameters": {
+        "sliding_attention": {"partial_rotary_factor": 1.0},
+        "full_attention": {"partial_rotary_factor": 0.5},
+    },
+}
+
+
+def test_fused_qkv_order_shapes():
+    for layer, rope_dim in enumerate((8, 4)):
+        order = row_order.fused_qkv_order(SPARK_CONFIG, layer, "spark-llama")
+        assert len(order) == 32
+        assert order[24:] == list(range(24, 32))
+        within = row_order.head_order(8, rope_dim)
+        for head in range(3):
+            assert order[head * 8 : head * 8 + 8] == [head * 8 + j for j in within]
+
+
+def test_declared_order_passes_and_raw_fails(tmp_path):
+    # head_dim 32 so the permutation moves rows across the 16-row blocks that share an exponent
+    config = dict(SPARK_CONFIG, head_dim=32)
+    torch.manual_seed(0)
+    order = row_order.fused_qkv_order(config, 0, "spark-llama")
+    assert len(order) == 128
+    permuted = torch.randn(128, 32).to(torch.bfloat16)
+    snapped = verify_grid.on_grid(permuted.t().contiguous(), 7).t().contiguous()
+    snapped = snapped.to(torch.bfloat16)
+    stored = torch.empty_like(snapped)
+    stored[torch.tensor(order)] = snapped
+    layers = {"0": {"self_attn.q_k_v_proj": {"format": "bfp8"}}}
+    tensors = {"model.layers.0.self_attn.q_k_v_proj.weight": stored}
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    checkpoint(tmp_path, tensors, layers, extra={"qkv_row_order": "spark-llama"})
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 matrices checked, 0 off the grid" in result.stdout
+    checkpoint(tmp_path, tensors, layers)
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert "OFF GRID: model.layers.0.self_attn.q_k_v_proj.weight" in result.stdout
+
+
+def test_unknown_order_refused(tmp_path):
+    checkpoint(
+        tmp_path,
+        {"model.layers.0.self_attn.q_k_v_proj.weight": torch.ones(32, 32, dtype=torch.bfloat16)},
+        {"0": {"self_attn.q_k_v_proj": {"format": "bfp8"}}},
+        extra={"qkv_row_order": "other"},
+    )
+    result = verify(tmp_path)
+    assert result.returncode != 0
+    assert "'other'" in result.stderr
