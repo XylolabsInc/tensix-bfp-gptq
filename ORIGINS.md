@@ -36,9 +36,9 @@ transformers and ttnn.
    sequences (comments and docstrings dropped) found in any one upstream Python, C, C++ or shell file, at most
    2.4 % (`tools/verify_grid.py`: argument parsing and `sys.path` lines).
 
-6. **Global linears.** On 2026-11-24, the files the `global_linears` change adds or changes
-   (`tools/pack_tensix.py`, `tools/verify_grid.py`, `tests/test_check_tools.py`, `tests/test_ttnn_pack.py`), with
-   `tools/row_order.py`, were checked against the same five trees at the same versions: the line comparison as in
+6. **Global linears and extra matrices.** On 2026-11-24, the files the `global_linears` and `extra` changes add or
+   change (`tools/pack_tensix.py`, `tools/verify_grid.py`, `tests/test_check_tools.py`, `tests/test_ttnn_pack.py`),
+   with `tools/row_order.py`, were checked against the same five trees at the same versions: the line comparison as in
    1, counting every line of 30 or more characters, whitespace-normalized, duplicates included, in both columns (the
    counts of item 5's rows reproduce that way; the other four trees add no line beyond tt-metal v0.81.1's), and the
    share of each file's distinct 10-token sequences (comments and docstrings dropped) found in any one upstream
@@ -60,7 +60,7 @@ transformers and ttnn.
 | `tensix_bfp/ministral3.py` | ours | 39 | 3 | Ministral 3's release to a text-only checkpoint |
 | `tensix_bfp/packed.py` | ours | 281 | 5 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`) |
 | `tests/test_bfp.py` | ours | 35 | 2 |  |
-| `tests/test_check_tools.py` | ours | 164 | 12 | adds the row-order and global-linear tests |
+| `tests/test_check_tools.py` | ours | 201 | 15 | adds the row-order, global-linear and extra-matrix tests |
 | `tests/test_data.py` | ours | 20 | 1 |  |
 | `tests/test_export_tiny.py` | ours | 74 | 7 |  |
 | `tests/test_gptq.py` | ours | 39 | 4 |  |
@@ -68,7 +68,7 @@ transformers and ttnn.
 | `tests/test_ttnn_pack.py` | ours | 109 | 10 | bfp.py and packed.py against stock ttnn's packer; the checker on global linears |
 | `tools/pack_tensix.py` | ours | 81 | 5 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip; applies a declared `qkv_row_order`; also checks the manifest's `global_linears` |
 | `tools/row_order.py` | ours | 46 | 1 | the `spark-llama` row order of a fused q/k/v projection, written to a written spec of our own design from the public Spark-X2.6-4B config and model code; shared by both check tools |
-| `tools/verify_grid.py` | ours | 81 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order`; also checks the manifest's `global_linears` |
+| `tools/verify_grid.py` | ours | 82 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order`; also checks the manifest's `global_linears` and `extra` |
 | `configs/*.toml` (15 files) | ours | 1-6 each | 0 | the export configurations of the published checkpoints |
 | `assets/xylolabs-lockup.svg`, `assets/xylolabs-lockup-dark.svg` | ours | 1 each | 0 | Xylolabs' logo |
 

@@ -343,3 +343,74 @@ def test_global_linear_named_twice_is_counted_once(tmp_path):
     result = verify(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "2 matrices checked, 0 off the grid" in result.stdout
+
+
+EXTRA = "model.per_layer_embed_projection.weight"
+
+
+def extra_checkpoint(directory, record=None, name=EXTRA, off_grid=False, present=True, bad=1.125):
+    extra = torch.full((32, 64), 1.25, dtype=torch.bfloat16)
+    if off_grid:
+        extra[0, 0] = bad
+    tensors = {"model.layers.0.mlp.up_proj.weight": torch.ones(32, 32, dtype=torch.bfloat16)}
+    if present:
+        tensors[EXTRA] = extra
+    checkpoint(directory, tensors, {"0": {"mlp.up_proj": {"format": "bfp4"}}})
+    manifest = json.loads((directory / "quant4.json").read_text())
+    manifest["extra"] = {name: record or {"format": "bfp4", "rounding": "rtn"}}
+    (directory / "quant4.json").write_text(json.dumps(manifest))
+
+
+def test_extra_on_grid_is_checked_and_counted(tmp_path):
+    extra_checkpoint(tmp_path)
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_extra_off_grid_fails(tmp_path):
+    extra_checkpoint(tmp_path, off_grid=True)
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert f"OFF GRID: {EXTRA}" in result.stdout
+    assert "2 matrices checked, 1 off the grid" in result.stdout
+
+
+def test_extra_bfp8_is_checked(tmp_path):
+    extra_checkpoint(tmp_path, record={"format": "bfp8"}, off_grid=True, bad=1.0078125)
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert f"OFF GRID: {EXTRA} (bfp8)" in result.stdout
+
+
+def test_extra_bf16_entry_is_skipped(tmp_path):
+    extra_checkpoint(tmp_path, record={"format": "bf16"}, off_grid=True)
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_extra_missing_fails(tmp_path):
+    extra_checkpoint(tmp_path, name="model.absent_extra", present=False)
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert "model.absent_extra" in result.stderr
+
+
+def test_layers_option_keeps_extras(tmp_path):
+    extra_checkpoint(tmp_path, off_grid=True)
+    result = verify(tmp_path, "--layers", "5")
+    assert result.returncode == 1
+    assert f"OFF GRID: {EXTRA}" in result.stdout
+    assert "1 matrices checked, 1 off the grid" in result.stdout
+
+
+def test_extra_named_twice_is_counted_once(tmp_path):
+    extra_checkpoint(tmp_path)
+    manifest = json.loads((tmp_path / "quant4.json").read_text())
+    manifest["global_linears"] = {EXTRA: {"format": "bfp4"}}
+    manifest["extra"][EXTRA[: -len(".weight")]] = {"format": "bfp4"}
+    (tmp_path / "quant4.json").write_text(json.dumps(manifest))
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 matrices checked, 0 off the grid" in result.stdout

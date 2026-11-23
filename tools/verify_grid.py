@@ -46,7 +46,7 @@ def quantized_weights(manifest, weight_map, layers=None):
 
 
 def declared_weights(manifest, weight_map, layers=None):
-    """Declared quantized tensors: layer projections, the LM head and global linears."""
+    """Declared quantized tensors: layer projections, the LM head, global linears and extras."""
     for layer, projections in manifest.get("layers", {}).items():
         if layers is not None and layer not in layers:
             continue
@@ -93,14 +93,15 @@ def declared_weights(manifest, weight_map, layers=None):
         if not isinstance(name, str) or name not in weight_map:
             raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
         yield name, fmt
-    for name, record in manifest.get("global_linears", {}).items():
-        fmt = record.get("format") if isinstance(record, dict) else None
-        if fmt not in ("bfp4", "bfp8"):
-            continue
-        keys = [k for k in (name, name + ".weight") if k in weight_map]
-        if len(keys) != 1:
-            raise ValueError(f"global linear {name!r} has no unambiguous tensor")
-        yield keys[0], fmt
+    for section, label in (("global_linears", "global linear"), ("extra", "extra matrix")):
+        for name, record in manifest.get(section, {}).items():
+            fmt = record.get("format") if isinstance(record, dict) else None
+            if fmt not in ("bfp4", "bfp8"):
+                continue
+            keys = [k for k in (name, name + ".weight") if k in weight_map]
+            if len(keys) != 1:
+                raise ValueError(f"{label} {name!r} has no unambiguous tensor")
+            yield keys[0], fmt
 
 
 def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
@@ -131,7 +132,8 @@ def main():
     ap.add_argument("model_dir", nargs="?", default=".")
     ap.add_argument(
         "--layers",
-        help="layer numbers to check; the quantized LM head and global linears are always checked",
+        help="layer numbers to check; the quantized LM head, global linears and extra matrices "
+        "are always checked",
     )
     a = ap.parse_args()
     d = a.model_dir

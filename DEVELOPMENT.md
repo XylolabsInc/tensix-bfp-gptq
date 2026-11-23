@@ -49,6 +49,7 @@ Only then are the commits and the tag pushed.
 |---|---|---|---|---|
 | 2026-11-24 | feat(tools): apply a declared row order of a fused q/k/v projection | 06-qkv-row-order.md, fe3716d0867b828689cf9e6bd879cc5d | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (73 passed, 1 skipped), test_ttnn_pack.py on ttsim (6 tests passed; pytest with ttnn: 79 passed), ruff check and format |
 | 2026-11-24 | feat(tools): check the manifest's global linears | 07-global-linears.md, 61826f2540bb6ccbde25f1d1034539f6 | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (TT-NN installed: 87 passed), test_ttnn_pack.py on ttsim (7 tests passed, 38 s, including test_checker_covers_global_linears), ruff check and format |
+| 2026-11-24 | feat(tools): check the manifest's extra matrices | 01-verify-grid-extras.md, fb52fb46b0f78fe54834601c8bc8d643 | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (TT-NN installed: 94 passed), test_ttnn_pack.py on ttsim (7 tests passed), ruff check and format |
 
 ## History
 
