@@ -37,7 +37,7 @@ SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
 def quantized_weights(manifest, weight_map, layers=None):
-    """Every declared quantized tensor, including numbered experts and the LM head."""
+    """Every declared quantized tensor, including numbered experts, the LM head and global linears."""
     for layer, projections in manifest.get("layers", {}).items():
         if layers is not None and layer not in layers:
             continue
@@ -84,6 +84,14 @@ def quantized_weights(manifest, weight_map, layers=None):
         if not isinstance(name, str) or name not in weight_map:
             raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
         yield name, fmt
+    for name, record in manifest.get("global_linears", {}).items():
+        fmt = record.get("format") if isinstance(record, dict) else None
+        if fmt not in ("bfp4", "bfp8"):
+            continue
+        keys = [k for k in (name, name + ".weight") if k in weight_map]
+        if len(keys) != 1:
+            raise ValueError(f"global linear {name!r} has no unambiguous tensor")
+        yield keys[0], fmt
 
 
 def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
@@ -113,7 +121,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("model_dir", nargs="?", default=".")
     ap.add_argument(
-        "--layers", help="layer numbers to check; the quantized LM head is always checked"
+        "--layers",
+        help="layer numbers to check; the quantized LM head and global linears are always checked",
     )
     a = ap.parse_args()
     d = a.model_dir

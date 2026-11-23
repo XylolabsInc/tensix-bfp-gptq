@@ -197,6 +197,40 @@ def test_checker_covers_bare_fused_experts():
                     assert f"MISMATCH {key}.1" in result.stdout
 
 
+def test_checker_covers_global_linears():
+    tool = Path(__file__).resolve().parents[1] / "tools/pack_tensix.py"
+    name = "model.per_layer_model_projection.weight"
+    with tempfile.TemporaryDirectory() as tmp:
+        directory = Path(tmp)
+        tensors = {
+            "model.layers.0.mlp.up_proj.weight": torch.ones(32, 32, dtype=torch.bfloat16),
+            name: torch.full((32, 64), 1.25, dtype=torch.bfloat16),
+        }
+        manifest = {
+            "layers": {"0": {"mlp.up_proj": {"format": "bfp4"}}},
+            "lm_head": "bf16",
+            "global_linears": {name: {"format": "bfp4"}},
+        }
+        (directory / "quant4.json").write_text(json.dumps(manifest))
+        (directory / "model.safetensors.index.json").write_text(
+            json.dumps({"weight_map": {key: "weights.safetensors" for key in tensors}})
+        )
+        for broken in (False, True):
+            if broken:
+                tensors[name][0, 0] = 1.125
+            save_file(tensors, str(directory / "weights.safetensors"))
+            result = subprocess.run(
+                [sys.executable, "-I", str(tool), str(directory)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert result.returncode == int(broken), result.stdout + result.stderr
+            assert "2 matrices packed with TT-NN" in result.stdout
+            if broken:
+                assert f"MISMATCH {name}" in result.stdout
+
+
 if __name__ == "__main__":
     if ttnn is None:
         print("ttnn is not installed: skipped")

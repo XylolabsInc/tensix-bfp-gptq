@@ -262,3 +262,73 @@ def test_unknown_order_refused(tmp_path):
     result = verify(tmp_path)
     assert result.returncode != 0
     assert "'other'" in result.stderr
+
+
+GLOBAL = "model.per_layer_model_projection.weight"
+
+
+def global_checkpoint(directory, record=None, name=GLOBAL, off_grid=False, present=True):
+    glob = torch.full((32, 64), 1.25, dtype=torch.bfloat16)
+    if off_grid:
+        glob[0, 0] = 1.125
+    tensors = {"model.layers.0.mlp.up_proj.weight": torch.ones(32, 32, dtype=torch.bfloat16)}
+    if present:
+        tensors[GLOBAL] = glob
+    checkpoint(directory, tensors, {"0": {"mlp.up_proj": {"format": "bfp4"}}})
+    manifest = json.loads((directory / "quant4.json").read_text())
+    manifest["global_linears"] = {name: record or {"format": "bfp4", "rounding": "rtn"}}
+    (directory / "quant4.json").write_text(json.dumps(manifest))
+
+
+def test_global_linear_is_checked(tmp_path):
+    global_checkpoint(tmp_path)
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_global_linear_off_grid_fails(tmp_path):
+    global_checkpoint(tmp_path, off_grid=True)
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert f"OFF GRID: {GLOBAL}" in result.stdout
+
+
+def test_global_linear_bf16_entry_is_skipped(tmp_path):
+    global_checkpoint(tmp_path, record={"format": "bf16"}, off_grid=True)
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 matrices checked, 0 off the grid" in result.stdout
+
+
+def test_global_linear_missing_fails(tmp_path):
+    global_checkpoint(tmp_path, name="model.absent_projection", present=False)
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert "model.absent_projection" in result.stderr
+
+
+def test_global_linear_name_without_suffix_and_ambiguity(tmp_path):
+    global_checkpoint(tmp_path, name=GLOBAL[: -len(".weight")])
+    result = verify(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 matrices checked, 0 off the grid" in result.stdout
+    tensors = {
+        "model.layers.0.mlp.up_proj.weight": torch.ones(32, 32, dtype=torch.bfloat16),
+        GLOBAL: torch.ones(32, 64, dtype=torch.bfloat16),
+        GLOBAL[: -len(".weight")]: torch.ones(32, 64, dtype=torch.bfloat16),
+    }
+    checkpoint(tmp_path, tensors, {"0": {"mlp.up_proj": {"format": "bfp4"}}})
+    manifest = json.loads((tmp_path / "quant4.json").read_text())
+    manifest["global_linears"] = {GLOBAL[: -len(".weight")]: {"format": "bfp4"}}
+    (tmp_path / "quant4.json").write_text(json.dumps(manifest))
+    result = verify(tmp_path)
+    assert result.returncode == 1
+    assert GLOBAL[: -len(".weight")] in result.stderr
+
+
+def test_layers_option_keeps_global_linears(tmp_path):
+    global_checkpoint(tmp_path)
+    result = verify(tmp_path, "--layers", "5")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 matrices checked, 0 off the grid" in result.stdout
