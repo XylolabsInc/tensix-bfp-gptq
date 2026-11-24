@@ -1,47 +1,40 @@
-# Development
+# How this repository is developed
 
-This page says how tensix-bfp-gptq is developed and how a release is checked before it is
-published. The Hugging Face model repos that use its exports and its loader link here.
+tensix-bfp-gptq is written for Tenstorrent Tensix NPUs from Tenstorrent's open software stack only.
 
-## What the work uses
+## What is used
 
-- Tenstorrent's open software and documentation: tt-metal and TT-NN, ttsim, SFPI, their docs and
-  their community. The BFP formats and the tile byte layout follow TT-NN's documented behavior and
-  tt-metal's public source (v0.81.1). The tests check them against stock `ttnn` on a Tenstorrent
-  card or on ttsim.
-- Published papers, such as GPTQ (Frantar et al., 2022, arXiv:2210.17323), implemented from the
-  paper.
-- The public APIs of torch, safetensors, tokenizers and transformers.
-- Public model checkpoints and public texts. The texts are downloaded at run time, not shipped
-  (`tensix_bfp/data.py`).
+- **Upstream code and tools:** tt-metal and TT-NN at the version pinned in this repository (v0.81.1), the ttsim
+  simulator, tt-forge and tt-mlir where named, and Tenstorrent's public documentation and community answers.
+- **Model code and weights:** public Hugging Face repositories under the licenses their cards declare; files adapted
+  from them keep their copyright lines and are listed in ORIGINS.md.
+- **Our own designs:** each change starts as a written specification of our own design (the algorithm, the data
+  layout, the API, the tests and their tolerances). The specification is reviewed before any code is written, and it
+  contains no third-party code.
 
-## What it does not use
+## What is not used
 
-No SDK, source code, documents, tools, test facilities or hardware of any other hardware vendor
-are used to write, design or test this repository. Defaults in the code are generic or chosen on
-ttsim. The code and the docs describe Tenstorrent Tensix and ttsim only, and carry no numbers
-measured on other hardware.
+While code for this repository is developed, nothing is used from any hardware vendor other than Tenstorrent's open
+releases: no other vendor's SDK, source code, documentation, test facility or hardware. Defaults that depend on a
+device (core counts, memory banks, L1 sizes) are read from the device at run time; tuned settings are starting
+points, not measurements of a particular device.
 
-## How the work is done
+## How a change is made
 
-- **A clean checkout.** Development happens in a checkout of this repository by developers and
-  coding agents who are not shown any third party's confidential material while they work.
-- **Written specs only.** When another team contributes a design, such as the packed file layout
-  of the Hugging Face model repos, it arrives as a written specification of our own design,
-  reviewed before it is used, never as code. The packed layout in v0.2.0 came this way. Its byte
-  order was then checked against tt-metal's public packer source.
-- **Tests.** `pytest` runs on a CPU. The tests that need `ttnn` run on ttsim or a Tenstorrent card
-  (`tests/test_ttnn_pack.py`).
+1. A specification is written and reviewed for third-party content.
+2. A developer who works only from the specification and the public stack implements it in a clean checkout that
+   holds this repository, the pinned upstream release and ttsim, and nothing else.
+3. The change is tested on ttsim with the checks named in AGENTS.md and RUNNING.md; correctness is checked against
+   float64 or bf16 references with the tolerances the specification fixes.
+4. Every file's origin is recorded in ORIGINS.md (and NOTICE for files that follow tt-metal), with SPDX headers.
+5. Each commit is reviewed for third-party content, including a token comparison against code we may not use, before
+   it is pushed; commits are signed.
 
-## Before a release is published
+## Releases before this process
 
-1. A reviewer outside the development session reads the release's changes for confidential
-   material and for anything that describes non-public hardware.
-2. Every file is compared, as a sequence of code tokens, with the non-public third-party source
-   trees we hold. The comparison must show nothing copied.
-3. `ORIGINS.md` records each file's origin and its comparison with public upstream code.
-
-Only then are the commits and the tag pushed.
+v0.1.0 (2026-11-16) predates it. It was written by Xylolabs from upstream tt-metal, TT-NN and ttsim only (see
+ORIGINS.md), and before release it was checked by token comparison against code we may not use, with no match beyond
+upstream code. Releases after v0.1.0 follow the process above.
 
 ## Log
 
@@ -50,9 +43,4 @@ Only then are the commits and the tag pushed.
 | 2026-11-24 | feat(tools): apply a declared row order of a fused q/k/v projection | 06-qkv-row-order.md, fe3716d0867b828689cf9e6bd879cc5d | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (73 passed, 1 skipped), test_ttnn_pack.py on ttsim (6 tests passed; pytest with ttnn: 79 passed), ruff check and format |
 | 2026-11-24 | feat(tools): check the manifest's global linears | 07-global-linears.md, 61826f2540bb6ccbde25f1d1034539f6 | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (TT-NN installed: 87 passed), test_ttnn_pack.py on ttsim (7 tests passed, 38 s, including test_checker_covers_global_linears), ruff check and format |
 | 2026-11-24 | feat(tools): check the manifest's extra matrices | 01-verify-grid-extras.md, fb52fb46b0f78fe54834601c8bc8d643 | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (TT-NN installed: 94 passed), test_ttnn_pack.py on ttsim (7 tests passed), ruff check and format |
-
-## History
-
-- **v0.2.0** was developed as this page describes.
-- **v0.1.0** was written from public material, under the rule in `AGENTS.md`. Its files were
-  checked after the release, as `ORIGINS.md` records (2026-11-17).
+| 2026-11-24 | docs(origins): record every file's origin | 01-origins-md.md, 0fb963254532e4ff23a9568d4dce868a | tt-metal/TT-NN v0.81.1, ttsim v1.16.0 | pytest (TT-NN installed: 96 passed), tests/test_origins.py (2 passed), ruff check and format |

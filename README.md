@@ -23,6 +23,8 @@ This tool quantizes the linear layers of a Hugging Face LLM to TT-NN's block flo
 ordinary bf16 safetensors checkpoint whose values already sit on the grid. TT-NN packs it without
 quantizing again, and transformers on a CPU or GPU runs exactly the weights the NPU will run.
 
+[DEVELOPMENT.md](DEVELOPMENT.md) says how this repository is developed, from Tenstorrent's open software stack only; [ORIGINS.md](ORIGINS.md) says where every file comes from and how that was checked.
+
 ## How it works
 
 TT-NN computes `x @ W` with `W` laid out `[in, out]`, the transpose of a PyTorch `Linear` weight. In
