@@ -27,7 +27,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `AGENTS.md` | ours |  | 40 | 0 | instructions for coding agents |
 | `CHANGELOG.md` | ours |  | 36 | 0 | documentation |
 | `CLAUDE.md` | ours |  | 0 | 0 | symbolic link to AGENTS.md |
-| `README.md` | ours |  | 148 | 0 | documentation |
+| `README.md` | ours |  | 150 | 0 | documentation |
 | `assets/xylolabs-lockup-dark.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `assets/xylolabs-lockup.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `configs/arete-27b.toml` | ours |  | 2 | 0 | the export configuration of a published checkpoint |
@@ -82,7 +82,7 @@ this repository pins, tt-metal v0.81.1.
    transformers v5.13.0 (5,909), the GPTQ reference implementation
    [IST-DASLab/gptq](https://github.com/IST-DASLab/gptq) (commit `2d65066`, 41),
    [AutoGPTQ](https://github.com/AutoGPTQ/AutoGPTQ) (commit `9f7d370`, 172) and
-   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,214 lines
+   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,216 lines
    checked, 131 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
    are license headers, import lines, calls of public APIs and common idioms.
 2. **Tokens.** Each of the 23 `.py`, `.cpp`, `.h` and `.sh` files was compared with every Python, C, C++, CUDA and

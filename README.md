@@ -18,7 +18,8 @@
 
 This tool quantizes the linear layers of a Hugging Face LLM to TT-NN's block floating point formats,
 `ttnn.bfloat4_b` (BFP4) and `ttnn.bfloat8_b` (BFP8), with GPTQ or round to nearest. The output is an
-ordinary bf16 safetensors checkpoint whose values already sit on the grid.
+ordinary bf16 safetensors checkpoint whose values already sit on the grid. TT-NN packs it without
+quantizing again, and transformers on a CPU or GPU runs exactly the weights the NPU will run.
 
 [DEVELOPMENT.md](DEVELOPMENT.md) says how this repository is developed, from Tenstorrent's open software stack only; [ORIGINS.md](ORIGINS.md) says where every file comes from and how that was checked.
 
@@ -109,7 +110,8 @@ python -m tensix_bfp.export --config configs/qwen3-4b.toml --model Qwen3-4B --ou
     --variant all=bfp4,lm_head=bf16,gptq [--device cuda:0] [--data DIR]
 ```
 
-`--model` is the original checkpoint.
+`--model` is the original checkpoint. One decoder layer runs at a time, so the GPU needs room for
+one layer and the calibration activations, not the whole model.
 
 A variant is a comma list:
 
