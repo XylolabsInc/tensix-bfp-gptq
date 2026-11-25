@@ -14,14 +14,11 @@
 [![ttnn](https://img.shields.io/badge/ttnn-0.81.1-5B2C83)](https://github.com/tenstorrent/tt-metal/releases/tag/v0.81.1)
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-models-FFD21E)](https://huggingface.co/Xylolabs)
 
-`tenstorrent` · `tensix` · `tt-metal` · `ttnn` · `quantization` · `gptq` · `block-floating-point`
-
 </div>
 
 This tool quantizes the linear layers of a Hugging Face LLM to TT-NN's block floating point formats,
 `ttnn.bfloat4_b` (BFP4) and `ttnn.bfloat8_b` (BFP8), with GPTQ or round to nearest. The output is an
-ordinary bf16 safetensors checkpoint whose values already sit on the grid. TT-NN packs it without
-quantizing again, and transformers on a CPU or GPU runs exactly the weights the NPU will run.
+ordinary bf16 safetensors checkpoint whose values already sit on the grid.
 
 [DEVELOPMENT.md](DEVELOPMENT.md) says how this repository is developed, from Tenstorrent's open software stack only; [ORIGINS.md](ORIGINS.md) says where every file comes from and how that was checked.
 
@@ -34,10 +31,9 @@ BFP8, so 4.5 and 8.5 bits a weight. `tensix_bfp.bfp.bfp()` matches tt-metal's ho
 bit, and `tests/test_ttnn_pack.py` checks it against `ttnn.as_tensor`.
 
 GPTQ (Frantar et al., 2022) quantizes one input channel at a time and spreads each column's error
-over the columns not yet quantized. A block lies inside one column, so GPTQ applies unchanged. For
+over the columns not yet quantized. For
 BFP4 the default method `exp` also tries each block's exponent one step lower and keeps whichever
-gives the smaller error. One step lower clips the largest values at the top code and puts the rest
-on a grid twice as fine.
+gives the smaller error.
 
 The values stay exact wherever a runtime packs them as `[in, out]` at their own format or a wider
 one: `ttnn.as_tensor`, tt-transformers with `--use_hf_rope`, and the tt-metal demos at matching
@@ -57,7 +53,7 @@ This needs Python 3.11 or later and is tested on 3.11 to 3.15. `.[ttnn]` needs P
 any other Python or platform the extra installs without ttnn.
 
 It is tested on Ubuntu 24.04. tt-metal v0.81.1 is built for Ubuntu 22.04 and 24.04; Ubuntu 26.04
-is not on that list, though its glibc is new enough for the wheel. Its system Python is 3.14, so
+is not on that list. Its system Python is 3.14, so
 `.[ttnn]` there needs a separate Python 3.12, such as `uv venv --python 3.12`.
 
 ttnn packs on the host but still needs a Tenstorrent card or Tenstorrent's simulator. Without a
@@ -86,9 +82,6 @@ For tt-metal older than v0.83, `soc_descriptor.yaml` must sit beside the simulat
 | `ministral3` | Ministral 3 (text model, from a text-only copy) | `ministral3-14b` |
 | `llama` | Llama 3.x | `llama-3.1-8b`, `llama-3.1-8b-cal4x` |
 
-Each config in `configs/` names the model, its family, the calibration and evaluation texts, the
-GPTQ damping and the variants studied for it.
-
 ## Usage
 
 ### Calibration texts
@@ -103,8 +96,7 @@ python -m tensix_bfp.data check [--data DIR] [--extra]
 
 The texts are WikiText-2 (train and test; CC BY-SA 3.0 and GFDL) and extracts of Korean Wikipedia
 articles (CC BY-SA 4.0, most text also GFDL). Both are downloaded from their sources, not shipped
-here. `tensix_bfp/data.py` records each file's source and SHA-256. Wikipedia articles change, so a
-fresh Korean fetch may not match the recorded hash.
+here. `tensix_bfp/data.py` records each file's source and SHA-256.
 
 Calibration takes `[calib] tokens` tokens, split evenly over `[calib] texts` in sequences of
 `[calib] seq`. For Llama, Ministral 3 and Gemma 4, each sequence starts with the begin-of-sequence
@@ -117,8 +109,7 @@ python -m tensix_bfp.export --config configs/qwen3-4b.toml --model Qwen3-4B --ou
     --variant all=bfp4,lm_head=bf16,gptq [--device cuda:0] [--data DIR]
 ```
 
-`--model` is the original checkpoint. One decoder layer runs at a time, so the GPU needs room for
-one layer and the calibration activations, not the whole model.
+`--model` is the original checkpoint.
 
 A variant is a comma list:
 
@@ -185,7 +176,7 @@ on the block-float grid only in another row order. `qkv_row_order` names that or
 value is `"spark-llama"`, for Spark-X2.6-4B's exports, and an absent field means no permutation. The
 tools then reorder the projection's rows (q heads, k heads, v heads) before the check or the pack:
 each q and k head puts every rotary pair side by side, with the same permutation for q and k, and the
-v rows stay in place (`tools/row_order.py`). The stored files are not rewritten.
+v rows stay in place (`tools/row_order.py`).
 
 ### Packed checkpoints
 
@@ -207,8 +198,7 @@ A packed tensor keeps its name and is stored as `U8 [n_tiles, 576]` (BFP4) or `[
 (BFP8), with a leading experts axis for a 3-D tensor. Each 32x32 tile holds 64 shared exponents,
 one for each 16-value row of its four 16x16 faces, then the values: a sign and a 3-bit or 7-bit
 magnitude each. `tensix_pack.json` records each packed tensor's format, shapes, orientation and
-the SHA-256 of its decoded bf16 values. Every other tensor is stored as it was. The docstring of
-`packed.py` gives the byte layout in full.
+the SHA-256 of its decoded bf16 values. Every other tensor is stored as it was.
 
 Decoding gives the bf16 export bit for bit, except that a `-0.0` loads as `+0.0`: TT-NN stores
 zeros with sign 0. `verify` checks each tensor's hash, and that its bytes are the ones TT-NN
@@ -262,11 +252,6 @@ reproduces such a head.
 pytest                           # the ttnn tests skip without ttnn or a chip
 python tests/test_ttnn_pack.py   # the ttnn tests alone
 ```
-
-## Development
-
-`DEVELOPMENT.md` says how this repository is developed from public material only and how a
-release is checked before it is published. `ORIGINS.md` records where every file comes from.
 
 ## License
 
