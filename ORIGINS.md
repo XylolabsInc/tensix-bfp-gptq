@@ -27,7 +27,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 |---|---|---|---|---|---|
 | `.gitignore` | ours |  | 0 | 0 | ignore patterns |
 | `AGENTS.md` | ours |  | 40 | 0 | instructions for coding agents |
-| `CHANGELOG.md` | ours |  | 27 | 0 | documentation |
+| `CHANGELOG.md` | ours |  | 30 | 0 | documentation |
 | `CLAUDE.md` | ours |  | 0 | 0 | symbolic link to AGENTS.md |
 | `README.md` | ours |  | 154 | 0 | documentation |
 | `assets/xylolabs-lockup-dark.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
@@ -58,7 +58,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `tensix_bfp/kl.py` | ours |  | 58 | 2 | mean KL, top-1 and top-5 against the bf16 model; its sequences are cut as llama.cpp's perplexity tool cuts them (the behavior, not its code) |
 | `tensix_bfp/ministral3.py` | ours |  | 39 | 3 | Ministral 3's release to a text-only checkpoint |
 | `tensix_bfp/packed.py` | ours |  | 359 | 8 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`); holds the one list of declared tensors (`declared_tensors`) that both check tools use, so it still runs alone |
-| `tests/test_bfp.py` | ours |  | 35 | 2 |  |
+| `tests/test_bfp.py` | ours |  | 115 | 4 | adds directed edge vectors frozen from TT-NN 0.81.1 (ties, clamp, subnormal flush, zeros, signs) |
 | `tests/test_check_tools.py` | ours |  | 201 | 15 | adds the row-order, global-linear and extra-matrix tests |
 | `tests/test_data.py` | ours |  | 20 | 1 |  |
 | `tests/test_declared_sections.py` | ours |  | 127 | 4 | every declared section is packed and checked, conflicting formats and qkv_row_order exports are refused |
@@ -83,8 +83,8 @@ this repository pins, tt-metal v0.81.1.
    transformers v5.13.0 (5,909), the GPTQ reference implementation
    [IST-DASLab/gptq](https://github.com/IST-DASLab/gptq) (commit `2d65066`, 41),
    [AutoGPTQ](https://github.com/AutoGPTQ/AutoGPTQ) (commit `9f7d370`, 172) and
-   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,046 lines
-   checked, 126 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
+   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,129 lines
+   checked, 128 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
    are license headers, import lines, calls of public APIs and common idioms.
 2. **Tokens.** Each of the 22 `.py`, `.cpp`, `.h` and `.sh` files was compared with every Python, C, C++, CUDA and
    shell file of the same trees as a set of distinct 10-token sequences (comments dropped, and docstrings for Python):

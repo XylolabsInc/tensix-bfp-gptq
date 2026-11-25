@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- `tests/test_bfp.py`: directed edge vectors for `bfp()` in both formats (ties, the clamp at the top
+  code, subnormal inputs flushed to zero, zero blocks, one non-zero value, both signs), with
+  expected values frozen from stock TT-NN 0.81.1 and checked again when ttnn is installed.
+
 ### Fixed
 
 - Shard names of `model.safetensors.index.json` are checked when the index is read: a name that
