@@ -10,6 +10,13 @@
   `unpack` and `pack` also refuse a symbolic-link output directory or output shard path, and
   write nothing before every name has passed. A cache-style snapshot (shard files that are links
   to `../../blobs/<hash>`) still reads, also through `tools/pack_tensix.py`.
+- `packed.pack`, `tools/pack_tensix.py` and `tools/verify_grid.py` take their tensors from one
+  list, `declared_tensors` in `tensix_bfp/packed.py`: layer projections, the LM head,
+  `global_linears` and `extra`.
+  `pack` now packs the global linears and extras, a tensor declared with two different formats is
+  an error, and a format that is neither `bfp4`, `bfp8` nor `bf16` is an error. `pack` refuses an
+  export with a `qkv_row_order`, and `tools/row_order.py` checks the fused row count without
+  `assert`. `packed.py` still works copied on its own.
 
 ## 0.2.0 (2026-11-18)
 

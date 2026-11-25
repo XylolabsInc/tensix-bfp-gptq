@@ -60,12 +60,12 @@ TILE_BYTES = {"bfp4": 64 + 512, "bfp8": 64 + 1024}
 ORIENTATIONS = ("transposed", "as_stored")
 PACK_JSON = "tensix_pack.json"
 INDEX = "model.safetensors.index.json"
-SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 __all__ = [
     "FORMAT",
     "FORMAT_VERSION",
     "TILE_BYTES",
+    "declared_tensors",
     "decode",
     "encode",
     "iter_bf16",
@@ -471,47 +471,134 @@ def unpack(model_dir, out_dir, check=True):
     return o
 
 
-def quantized_tensors(manifest, weight_map):
-    """(tensor name, format) of every tensor quant4.json lists as bfp4 or bfp8: the layers'
-    projections, numbered experts and the LM head."""
+# --- declared tensors -----------------------------------------------------------------------------
+
+
+BLOCK_FORMATS = ("bfp4", "bfp8")
+SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
+
+
+def _format(record, label):
+    """A record's block format, or None for a bf16 (or format-less) entry; a ValueError naming the
+    tensor and the format for any other."""
+    fmt = record.get("format") if isinstance(record, dict) else None
+    if fmt is None or fmt == "bf16" or fmt in BLOCK_FORMATS:
+        return fmt if fmt in BLOCK_FORMATS else None
+    raise ValueError(f"{label}: format {fmt!r} is neither bfp4, bfp8 nor bf16")
+
+
+def _plain(name, weight_map, label):
+    """The weight map's key of a declared name given with or without `.weight`."""
+    if not isinstance(name, str):
+        raise ValueError(f"{label} {name!r} has no unambiguous tensor")
+    keys = [k for k in (name, name + ".weight") if k in weight_map]
+    if len(keys) != 1:
+        problem = "is in the weight map with and without .weight" if keys else "is missing"
+        raise ValueError(f"{label} {name!r} has no unambiguous tensor: it {problem}")
+    return keys[0]
+
+
+def _projection(layer, name, weight_map):
+    """The tensors of one layer projection: one tensor, or its numbered experts."""
+    suffixes = (f"layers.{layer}.{name}.weight", f"layers.{layer}.{name}")
+    keys = [k for k in weight_map if k.endswith(suffixes) and not any(s in k for s in SKIP)]
+    if not keys and ".experts." in name:
+        module, projection = name.rsplit(".experts.", 1)
+
+        def numbered(part):
+            pattern = re.compile(
+                rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
+                rf"\.experts\.(\d+)\.{re.escape(part)}(?:\.weight)?$"
+            )
+            matches = [
+                (int(m.group(1)), k)
+                for k in weight_map
+                if (m := pattern.search(k)) and not any(s in k for s in SKIP)
+            ]
+            if len({i for i, _ in matches}) != len(matches):
+                raise ValueError(f"projection {layer}/{name} has ambiguous experts")
+            return sorted(matches)
+
+        matches = numbered(projection)
+        if matches:
+            return [k for _, k in matches]
+        if projection == "gate_up_proj":
+            gates, ups = numbered("gate_proj"), numbered("up_proj")
+            if gates and [i for i, _ in gates] == [i for i, _ in ups]:
+                return [k for pair in zip(gates, ups) for _, k in pair]
+    if len(keys) != 1:
+        raise ValueError(f"projection {layer}/{name} has no unambiguous tensors")
+    return keys
+
+
+def _declarations(manifest, weight_map, layers):
+    """(tensor, format, selected) for each declaration of a block format, in manifest order:
+    selected is False for a layer outside `layers`, which is resolved only to find conflicts."""
     for layer, projections in manifest.get("layers", {}).items():
+        selected = layers is None or layer in layers
         for name, record in projections.items():
-            fmt = record.get("format") if isinstance(record, dict) else None
-            if fmt not in MANTISSA_BITS:
+            fmt = _format(record, f"projection {layer}/{name}")
+            if fmt is None:
                 continue
-            suffixes = (f"layers.{layer}.{name}.weight", f"layers.{layer}.{name}")
-            keys = [k for k in weight_map if k.endswith(suffixes) and not any(s in k for s in SKIP)]
-            if not keys and ".experts." in name:
-                module, projection = name.rsplit(".experts.", 1)
-                parts = ("gate_proj", "up_proj") if projection == "gate_up_proj" else ()
-                pattern = re.compile(
-                    rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
-                    rf"\.experts\.\d+\.({'|'.join(map(re.escape, (projection, *parts)))})(?:\.weight)?$"
-                )
-                keys = [
-                    k for k in weight_map if pattern.search(k) and not any(s in k for s in SKIP)
-                ]
-            if not keys:
-                raise ValueError(f"projection {layer}/{name}: no tensor in the weight map")
+            try:
+                keys = _projection(layer, name, weight_map)
+            except ValueError:
+                if selected:
+                    raise
+                continue
             for k in keys:
-                yield k, fmt
-    fmt = manifest.get("lm_head")
-    if fmt in MANTISSA_BITS:
+                yield k, fmt, selected
+    fmt = _format({"format": manifest.get("lm_head")}, "LM head")
+    if fmt is not None:
         name = manifest.get("lm_head_tensor", "lm_head.weight")
-        if name not in weight_map:
+        if not isinstance(name, str) or name not in weight_map:
             raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
-        yield name, fmt
+        yield name, fmt, True
+    for section, label in (("global_linears", "global linear"), ("extra", "extra matrix")):
+        for name, record in manifest.get(section, {}).items():
+            fmt = _format(record, f"{label} {name!r}")
+            if fmt is not None:
+                yield _plain(name, weight_map, label), fmt, True
+
+
+def declared_tensors(manifest, weight_map, layers=None):
+    """[(tensor name, format)] of every tensor `manifest` declares as bfp4 or bfp8, each once, in
+    the order first declared: layer projections (and numbered experts), the LM head, global
+    linears, extras. A name is looked up with or without `.weight`; one found in both forms, or in
+    neither, is a ValueError, as is a format that is neither bfp4, bfp8 nor bf16 and a tensor
+    declared with two different formats (the message names both). With `layers` (a set of layer
+    numbers as strings) only those layers' projections are listed; the other sections always are."""
+    formats, listed = {}, {}
+    for name, fmt, selected in _declarations(manifest, weight_map, layers):
+        if formats.setdefault(name, fmt) != fmt:
+            raise ValueError(f"tensor {name!r} is declared as {formats[name]} and as {fmt}")
+        if selected:
+            listed[name] = fmt
+    return list(listed.items())
+
+
+def quantized_tensors(manifest, weight_map):
+    """(tensor name, format) of every tensor quant4.json declares as bfp4 or bfp8, once each: the
+    layers' projections and numbered experts, the LM head, `global_linears` and `extra` (see
+    declared_tensors)."""
+    return declared_tensors(manifest, weight_map)
 
 
 def pack(src_dir, out_dir, at_pack=()):
     """Write the packed checkpoint of a bf16-grid export (with its quant4.json) to out_dir. Each
-    tensor quant4.json lists as bfp4 or bfp8 is packed transposed (TT-NN's [in, out]); each other
+    tensor quant4.json declares as bfp4 or bfp8, in any section, is packed transposed (TT-NN's
+    [in, out]); each other
     tensor whose name matches a regular expression of at_pack, a list of (regex, format), is rounded
     as stock TT-NN rounds it and packed the same way. A tensor whose packed matrices are not
     multiples of 32 in both axes stays as stored. Shards become model-0000k-of-0000n.safetensors
     (model.safetensors when there is one). Returns (records, names left as stored)."""
     s = Path(src_dir)
     manifest = json.loads((s / "quant4.json").read_text())
+    if manifest.get("qkv_row_order") is not None:
+        raise ValueError(
+            f"quant4.json: qkv_row_order {manifest['qkv_row_order']!r}: pack does not support "
+            "an export with a qkv_row_order (use tools/pack_tensix.py)"
+        )
     weight_map = shards(s)
     fmts = dict(quantized_tensors(manifest, weight_map))
     rules = []

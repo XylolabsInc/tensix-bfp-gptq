@@ -14,7 +14,8 @@ packer stores it as it is.
 A top-level `qkv_row_order` in `quant4.json` names a row order (see row_order.py) that is applied to
 each fused `self_attn.q_k_v_proj` before it is checked.
 
-Needs only torch and safetensors (no Tenstorrent software).
+Needs only torch and safetensors (no Tenstorrent software), and `packed.py` of `tensix_bfp/`
+(or a copy of it next to this file).
 
 Usage: python verify_grid.py [MODEL_DIR] [--layers 0,1,...]
 Exit status 0 when every listed matrix is on its grid, 1 otherwise.
@@ -23,7 +24,6 @@ Exit status 0 when every listed matrix is on its grid, 1 otherwise.
 import argparse
 import json
 import os
-import re
 import sys
 
 import torch
@@ -35,75 +35,11 @@ import packed as packed_checkpoint  # noqa: E402
 import row_order  # noqa: E402
 
 MANTISSA_BITS = {"bfp4": 3, "bfp8": 7}
-SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
 def quantized_weights(manifest, weight_map, layers=None):
     """Every declared quantized tensor once, whichever sections of the manifest name it."""
-    seen = set()
-    for name, fmt in declared_weights(manifest, weight_map, layers):
-        if name not in seen:
-            seen.add(name)
-            yield name, fmt
-
-
-def declared_weights(manifest, weight_map, layers=None):
-    """Declared quantized tensors: layer projections, the LM head, global linears and extras."""
-    for layer, projections in manifest.get("layers", {}).items():
-        if layers is not None and layer not in layers:
-            continue
-        for name, record in projections.items():
-            fmt = record.get("format") if isinstance(record, dict) else None
-            if fmt not in ("bfp4", "bfp8"):
-                continue
-            suffixes = (f"layers.{layer}.{name}.weight", f"layers.{layer}.{name}")
-            keys = [k for k in weight_map if k.endswith(suffixes) and not any(s in k for s in SKIP)]
-            if not keys and ".experts." in name:
-                module, projection = name.rsplit(".experts.", 1)
-
-                def numbered(part):
-                    pattern = re.compile(
-                        rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
-                        rf"\.experts\.(\d+)\.{re.escape(part)}(?:\.weight)?$"
-                    )
-                    matches = [
-                        (int(m.group(1)), k)
-                        for k in weight_map
-                        if (m := pattern.search(k)) and not any(s in k for s in SKIP)
-                    ]
-                    if len({i for i, _ in matches}) != len(matches):
-                        raise ValueError(f"projection {layer}/{name} has ambiguous experts")
-                    return sorted(matches)
-
-                matches = numbered(projection)
-                if matches:
-                    yield from ((k, fmt) for _, k in matches)
-                    continue
-                if projection == "gate_up_proj":
-                    gates, ups = numbered("gate_proj"), numbered("up_proj")
-                    if gates and [i for i, _ in gates] == [i for i, _ in ups]:
-                        for (_, gate), (_, up) in zip(gates, ups):
-                            yield gate, fmt
-                            yield up, fmt
-                        continue
-            if len(keys) != 1:
-                raise ValueError(f"projection {layer}/{name} has no unambiguous tensors")
-            yield keys[0], fmt
-    fmt = manifest.get("lm_head")
-    if fmt in ("bfp4", "bfp8"):
-        name = manifest.get("lm_head_tensor", "lm_head.weight")
-        if not isinstance(name, str) or name not in weight_map:
-            raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
-        yield name, fmt
-    for section, label in (("global_linears", "global linear"), ("extra", "extra matrix")):
-        for name, record in manifest.get(section, {}).items():
-            fmt = record.get("format") if isinstance(record, dict) else None
-            if fmt not in ("bfp4", "bfp8"):
-                continue
-            keys = [k for k in (name, name + ".weight") if k in weight_map]
-            if len(keys) != 1:
-                raise ValueError(f"{label} {name!r} has no unambiguous tensor")
-            yield keys[0], fmt
+    return packed_checkpoint.declared_tensors(manifest, weight_map, layers)
 
 
 def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:

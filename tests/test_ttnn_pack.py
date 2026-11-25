@@ -263,6 +263,49 @@ def test_checker_reads_a_cache_style_snapshot():
         assert "2 matrices packed with TT-NN" in result.stdout
 
 
+def test_checker_covers_extra_matrices_and_refuses_conflicts():
+    tool = Path(__file__).resolve().parents[1] / "tools/pack_tensix.py"
+    name = "model.extra_matrix.weight"
+    head = "lm_head.weight"
+    with tempfile.TemporaryDirectory() as tmp:
+        directory = Path(tmp)
+        tensors = {
+            "model.layers.0.mlp.up_proj.weight": torch.ones(32, 32, dtype=torch.bfloat16),
+            head: torch.full((32, 32), 1.015625, dtype=torch.bfloat16),
+            name: torch.full((32, 64), 1.25, dtype=torch.bfloat16),
+        }
+        manifest = {
+            "layers": {"0": {"mlp.up_proj": {"format": "bfp4"}}},
+            "lm_head": "bfp8",
+            "extra": {name: {"format": "bfp4"}, head: {"format": "bfp8"}},
+        }
+        (directory / "model.safetensors.index.json").write_text(
+            json.dumps({"weight_map": {key: "weights.safetensors" for key in tensors}})
+        )
+        save_file(tensors, str(directory / "weights.safetensors"))
+
+        def run():
+            (directory / "quant4.json").write_text(json.dumps(manifest))
+            return subprocess.run(
+                [sys.executable, "-I", str(tool), str(directory)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        result = run()  # the head declared twice with one format counts once
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "3 matrices packed with TT-NN" in result.stdout
+        tensors[name][0, 0] = 1.125  # off the bfp4 grid
+        save_file(tensors, str(directory / "weights.safetensors"))
+        result = run()
+        assert result.returncode == 1 and f"MISMATCH {name}" in result.stdout
+        manifest["extra"][head] = {"format": "bfp4"}  # on the bfp8 grid only
+        result = run()
+        assert result.returncode == 1 and "matrices packed" not in result.stdout
+        assert f"{head!r} is declared as bfp8 and as bfp4" in result.stderr
+
+
 if __name__ == "__main__":
     if ttnn is None:
         print("ttnn is not installed: skipped")

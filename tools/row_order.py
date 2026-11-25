@@ -97,8 +97,9 @@ def reorder(matrix: torch.Tensor, name: str, config: dict | None, order: str | N
     if order is None or found is None:
         return matrix
     rows = fused_qkv_order(config, int(found.group(1)), order)
-    assert matrix.shape[0] == len(rows), (
-        f"{name} has {matrix.shape[0]} rows, expected "
-        f"(num_attention_heads + 2 * num_key_value_heads) * head_dim = {len(rows)}"
-    )
+    if matrix.shape[0] != len(rows):
+        raise SystemExit(
+            f"{name} has {matrix.shape[0]} rows, expected "
+            f"(num_attention_heads + 2 * num_key_value_heads) * head_dim = {len(rows)}"
+        )
     return matrix[torch.tensor(rows)]

@@ -279,7 +279,7 @@ def test_verify_finds_tampering(tmp_path):
 
 
 def test_runs_standalone(tmp_path):
-    """packed.py also works copied alone next to a checkpoint, as the model repos ship it."""
+    """packed.py also works copied alone next to a checkpoint (as the model repos ship it)."""
     src, dst, back = tmp_path / "bf16", tmp_path / "packed", tmp_path / "unpacked"
     src.mkdir()
     export_dir(src)

@@ -27,9 +27,9 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 |---|---|---|---|---|---|
 | `.gitignore` | ours |  | 0 | 0 | ignore patterns |
 | `AGENTS.md` | ours |  | 40 | 0 | instructions for coding agents |
-| `CHANGELOG.md` | ours |  | 21 | 0 | documentation |
+| `CHANGELOG.md` | ours |  | 27 | 0 | documentation |
 | `CLAUDE.md` | ours |  | 0 | 0 | symbolic link to AGENTS.md |
-| `README.md` | ours |  | 152 | 0 | documentation |
+| `README.md` | ours |  | 154 | 0 | documentation |
 | `assets/xylolabs-lockup-dark.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `assets/xylolabs-lockup.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `configs/arete-27b.toml` | ours |  | 2 | 0 | the export configuration of a published checkpoint |
@@ -57,19 +57,20 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `tensix_bfp/gptq.py` | ours |  | 93 | 1 | GPTQ (Frantar et al., 2022, arXiv:2210.17323), implemented from the paper |
 | `tensix_bfp/kl.py` | ours |  | 58 | 2 | mean KL, top-1 and top-5 against the bf16 model; its sequences are cut as llama.cpp's perplexity tool cuts them (the behavior, not its code) |
 | `tensix_bfp/ministral3.py` | ours |  | 39 | 3 | Ministral 3's release to a text-only checkpoint |
-| `tensix_bfp/packed.py` | ours |  | 311 | 8 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`) |
+| `tensix_bfp/packed.py` | ours |  | 359 | 8 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`); holds the one list of declared tensors (`declared_tensors`) that both check tools use, so it still runs alone |
 | `tests/test_bfp.py` | ours |  | 35 | 2 |  |
 | `tests/test_check_tools.py` | ours |  | 201 | 15 | adds the row-order, global-linear and extra-matrix tests |
 | `tests/test_data.py` | ours |  | 20 | 1 |  |
+| `tests/test_declared_sections.py` | ours |  | 127 | 4 | every declared section is packed and checked, conflicting formats and qkv_row_order exports are refused |
 | `tests/test_export_tiny.py` | ours |  | 74 | 6 |  |
 | `tests/test_gptq.py` | ours |  | 39 | 4 |  |
 | `tests/test_origins.py` | ours |  | 21 | 4 | every tracked file is listed in ORIGINS.md exactly once |
 | `tests/test_packed.py` | ours |  | 176 | 14 |  |
 | `tests/test_shard_names.py` | ours |  | 141 | 9 | shard names that leave their directory, and cache-style snapshots |
-| `tests/test_ttnn_pack.py` | ours |  | 127 | 12 | bfp.py and packed.py against stock ttnn's packer; the checker on global linears and on a cache-style snapshot |
-| `tools/pack_tensix.py` | ours |  | 89 | 5 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip; applies a declared `qkv_row_order`; also checks the manifest's `global_linears` |
+| `tests/test_ttnn_pack.py` | ours |  | 150 | 14 | bfp.py and packed.py against stock ttnn's packer; the checker on global linears, extra matrices, conflicting formats and a cache-style snapshot |
+| `tools/pack_tensix.py` | ours |  | 58 | 5 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip; applies a declared `qkv_row_order`; checks every declared section through `packed.py`'s `declared_tensors` |
 | `tools/row_order.py` | ours |  | 46 | 1 | the `spark-llama` row order of a fused q/k/v projection, written to a written spec of our own design from the public Spark-X2.6-4B config and model code; shared by both check tools |
-| `tools/verify_grid.py` | ours |  | 90 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order`; also checks the manifest's `global_linears` and `extra` |
+| `tools/verify_grid.py` | ours |  | 58 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order`; checks every declared section through `packed.py`'s `declared_tensors` |
 
 ## How it was checked
 
@@ -82,14 +83,14 @@ this repository pins, tt-metal v0.81.1.
    transformers v5.13.0 (5,909), the GPTQ reference implementation
    [IST-DASLab/gptq](https://github.com/IST-DASLab/gptq) (commit `2d65066`, 41),
    [AutoGPTQ](https://github.com/AutoGPTQ/AutoGPTQ) (commit `9f7d370`, 172) and
-   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 2,903 lines
-   checked, 120 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
+   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,046 lines
+   checked, 126 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
    are license headers, import lines, calls of public APIs and common idioms.
-2. **Tokens.** Each of the 21 `.py`, `.cpp`, `.h` and `.sh` files was compared with every Python, C, C++, CUDA and
+2. **Tokens.** Each of the 22 `.py`, `.cpp`, `.h` and `.sh` files was compared with every Python, C, C++, CUDA and
    shell file of the same trees as a set of distinct 10-token sequences (comments dropped, and docstrings for Python):
    at most 3.70 % of a file's distinct sequences occur in any one upstream file (the highest is `tests/test_data.py`, closest
-   to `tt-metal/models/demos/unet_3d/demo/config.py`; a file of 20 lines checked, so few sequences); 4 files reach 2.5 % or more. Among
-   the files of class "ours" with 50 or more lines checked, the highest is 2.70 % (`tensix_bfp/kl.py`).
+   to `tt-metal/models/demos/unet_3d/demo/config.py`; a file of 20 lines checked, so few sequences); 6 files reach 2.5 % or more. Among
+   the files of class "ours" with 50 or more lines checked, the highest is 3.37 % (`tools/pack_tensix.py`).
 
 ## Third-party model code and configs
 

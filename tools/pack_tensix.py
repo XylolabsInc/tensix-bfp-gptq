@@ -3,7 +3,8 @@
 # Copyright 2026 Xylolabs
 """Pack this checkpoint's quantized matrices into TT-NN's block floating-point formats and check the round trip.
 
-For each linear projection that `quant4.json` lists as bfp4 or bfp8, the PyTorch weight [out, in]
+For each tensor that `quant4.json` declares as bfp4 or bfp8 (layer projections, the LM head,
+`global_linears` and `extra`), the PyTorch weight [out, in]
 is transposed to [in, out] (the layout TT-NN's matmul reads), packed with
 `ttnn.as_tensor(..., dtype=ttnn.bfloat4_b or ttnn.bfloat8_b, layout=ttnn.TILE_LAYOUT)`, unpacked
 with `ttnn.to_torch`, and compared with the stored bf16 values: they must be equal, bit for bit,
@@ -27,7 +28,6 @@ Exit status 0 when every packed matrix unpacks to its stored values, 1 otherwise
 import argparse
 import json
 import os
-import re
 import sys
 
 import torch
@@ -40,74 +40,11 @@ import packed as packed_checkpoint  # noqa: E402
 import row_order  # noqa: E402
 
 DTYPES = {"bfp4": ttnn.bfloat4_b, "bfp8": ttnn.bfloat8_b}
-SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
 def quantized_weights(manifest, weight_map, layers=None):
     """Every declared quantized tensor once, whichever sections of the manifest name it."""
-    seen = set()
-    for name, fmt in declared_weights(manifest, weight_map, layers):
-        if name not in seen:
-            seen.add(name)
-            yield name, fmt
-
-
-def declared_weights(manifest, weight_map, layers=None):
-    """Declared quantized tensors: layer projections, the LM head and global linears."""
-    for layer, projections in manifest.get("layers", {}).items():
-        if layers is not None and layer not in layers:
-            continue
-        for name, record in projections.items():
-            fmt = record.get("format") if isinstance(record, dict) else None
-            if fmt not in ("bfp4", "bfp8"):
-                continue
-            suffixes = (f"layers.{layer}.{name}.weight", f"layers.{layer}.{name}")
-            keys = [k for k in weight_map if k.endswith(suffixes) and not any(s in k for s in SKIP)]
-            if not keys and ".experts." in name:
-                module, projection = name.rsplit(".experts.", 1)
-
-                def numbered(part):
-                    pattern = re.compile(
-                        rf"(?:^|\.)layers\.{re.escape(str(layer))}\.{re.escape(module)}"
-                        rf"\.experts\.(\d+)\.{re.escape(part)}(?:\.weight)?$"
-                    )
-                    matches = [
-                        (int(m.group(1)), k)
-                        for k in weight_map
-                        if (m := pattern.search(k)) and not any(s in k for s in SKIP)
-                    ]
-                    if len({i for i, _ in matches}) != len(matches):
-                        raise ValueError(f"projection {layer}/{name} has ambiguous experts")
-                    return sorted(matches)
-
-                matches = numbered(projection)
-                if matches:
-                    yield from ((k, fmt) for _, k in matches)
-                    continue
-                if projection == "gate_up_proj":
-                    gates, ups = numbered("gate_proj"), numbered("up_proj")
-                    if gates and [i for i, _ in gates] == [i for i, _ in ups]:
-                        for (_, gate), (_, up) in zip(gates, ups):
-                            yield gate, fmt
-                            yield up, fmt
-                        continue
-            if len(keys) != 1:
-                raise ValueError(f"projection {layer}/{name} has no unambiguous tensors")
-            yield keys[0], fmt
-    fmt = manifest.get("lm_head")
-    if fmt in ("bfp4", "bfp8"):
-        name = manifest.get("lm_head_tensor", "lm_head.weight")
-        if not isinstance(name, str) or name not in weight_map:
-            raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
-        yield name, fmt
-    for name, record in manifest.get("global_linears", {}).items():
-        fmt = record.get("format") if isinstance(record, dict) else None
-        if fmt not in ("bfp4", "bfp8"):
-            continue
-        keys = [k for k in (name, name + ".weight") if k in weight_map]
-        if len(keys) != 1:
-            raise ValueError(f"global linear {name!r} has no unambiguous tensor")
-        yield keys[0], fmt
+    return packed_checkpoint.declared_tensors(manifest, weight_map, layers)
 
 
 def index_weight_map(model_dir):
@@ -126,7 +63,8 @@ def main():
     ap.add_argument("model_dir", nargs="?", default=".")
     ap.add_argument(
         "--layers",
-        help="layer numbers to check; the quantized LM head and global linears are always checked",
+        help="layer numbers to check; the quantized LM head, global linears and extra matrices are "
+        "always checked",
     )
     ap.add_argument(
         "--device", action="store_true", help="also write each tensor to device 0 and read it back"

@@ -172,7 +172,7 @@ projection fails the check. Both tools also check every `bfp4` or `bfp8` matrix 
 `global_linears` in `quant4.json` (a projection outside the decoder layers, such as Gemma 4's
 `per_layer_model_projection`); `--layers` does not limit them. A tensor the manifest names more
 than once (as a global linear, an extra matrix or the LM head, say) is checked and counted once.
-`verify_grid.py` likewise checks every `bfp4` or `bfp8` matrix under `extra` (matrices outside the
+Both tools likewise check every `bfp4` or `bfp8` matrix under `extra` (matrices outside the
 numbered layers, named by their full tensor name) and counts it in the total; a declared one
 missing from the weight map fails. The tools check each matrix in its stored row order, except a
 fused q/k/v projection when `quant4.json` has a top-level `qkv_row_order`.
@@ -210,9 +210,12 @@ the SHA-256 of its decoded bf16 values. Every other tensor is stored as it was. 
 Decoding gives the bf16 export bit for bit, except that a `-0.0` loads as `+0.0`: TT-NN stores
 zeros with sign 0. `verify` checks each tensor's hash, and that its bytes are the ones TT-NN
 writes for its values. `pack` packs the matrices that `quant4.json` lists, transposed to TT-NN's
-`[in, out]`; matrices whose sides are not multiples of 32 stay bf16. `--at-pack` also rounds the
-bf16 tensors whose names match, as TT-NN rounds them when it packs them (for example a drafter's
-`mtp.*` matrices), and records that in `tensix_pack.json`.
+`[in, out]`, and covers every declared section (layer projections, the LM head, `global_linears` and
+`extra`); an export whose `quant4.json` has a `qkv_row_order` cannot be packed with `packed.pack`,
+and `tools/pack_tensix.py` is the tool that applies it. Matrices whose sides are not multiples of
+32 stay bf16. `--at-pack` also rounds the bf16 tensors whose names match, as TT-NN rounds them
+when it packs them (for example a drafter's `mtp.*` matrices), and records that in
+`tensix_pack.json`.
 
 ### KL divergence
 
