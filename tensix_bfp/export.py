@@ -41,7 +41,7 @@ import torch
 
 from . import data as datamod
 from .bfp import EXP_OFFSETS, bfp_search_weight, bfp_weight, parse_fmt, quantize, rel
-from .gptq import Hessian, gptq, gptq_prep, round_proj
+from .gptq import Hessian, gptq_prep, round_proj
 
 DEFAULTS = {
     "calib": {"texts": ["calib_en", "calib_ko"], "tokens": 24576, "seq": 1024},
@@ -780,6 +780,25 @@ class Recorder:
 # --- conversion ---------------------------------------------------------------------------------
 
 
+def uses_gptq(fmt, bfp8):
+    """Whether a matrix of format fmt is rounded by GPTQ when GPTQ is on: bfloat4_b always,
+    bfloat8_b with `--bfp8 gptq`."""
+    return fmt == "bfp4" or (fmt == "bfp8" and bfp8 == "gptq")
+
+
+def round_matrix(w, fmt, prep, method, bfp8):
+    """w rounded to fmt as the options say, for a layer projection and for the LM head alike.
+    prep: the gptq_prep() of the matrix's input Hessian, or None to round without GPTQ. With prep,
+    bfloat4_b takes round_proj() (`method` exp: GPTQ with the exponent search; gptq: plain GPTQ)
+    and bfloat8_b, under `--bfp8 gptq`, plain GPTQ; `--bfp8 exp` is the exponent search at 7
+    mantissa bits; everything else is round to nearest."""
+    if prep is not None and uses_gptq(fmt, bfp8):
+        return round_proj(w, fmt, prep, method)
+    if fmt == "bfp8" and bfp8 == "exp":
+        return bfp_search_weight(w, 7)
+    return quantize(w, fmt)
+
+
 def convert_layer(md, v, i, raw, store, log, method="exp", bfp8="rtn"):
     """Layer i converted: {name: float32 tensor}. store: the layer's Hessians (GPTQ only)."""
     fam, p = md.fam, f"layers.{i}."
@@ -802,12 +821,8 @@ def convert_layer(md, v, i, raw, store, log, method="exp", bfp8="rtn"):
         return preps[site]
 
     def rounded(name, w, fmt, site):
-        if v.gptq and (fmt == "bfp4" or (fmt == "bfp8" and bfp8 == "gptq")) and store is not None:
-            q = round_proj(w, fmt, prep_of(site), method)
-        elif fmt == "bfp8" and bfp8 == "exp":
-            q = bfp_search_weight(w, 7)
-        else:
-            q = quantize(w, fmt)
+        gptq_on = v.gptq and store is not None and uses_gptq(fmt, bfp8)
+        q = round_matrix(w, fmt, prep_of(site) if gptq_on else None, method, bfp8)
         log[name] = (fmt, rel(w, q))
         return q
 
@@ -1002,15 +1017,15 @@ def export(
         print(f"layer {i}: worst relative error {worst:.4f}, {time.time() - t0:.0f} s", flush=True)
     nw, w = md.head()
     fmt = v.of("lm_head")
-    if v.gptq and fmt == "bfp4":
+    prep = None
+    if v.gptq and uses_gptq(fmt, bfp8):
         hh = Hessian(md.dim)
         for x in cal:
             hh.add(plain_norm(x))
         hh = symmetric({"head": hh.get()})["head"]
         dn = md.fam.norm_offset + nw
-        w = gptq(w, dn[:, None] * hh * dn[None, :], fmt, damp=v.damp)[0]
-    else:
-        w = quantize(w, fmt)
+        prep = gptq_prep(dn[:, None] * hh * dn[None, :], True, v.damp)
+    w = round_matrix(w, fmt, prep, method, bfp8)
     del cal, cctx
     save_head(md, v, d, nw, w, man, manifest_format)
     (d / MANIFEST).write_text(json.dumps(man))

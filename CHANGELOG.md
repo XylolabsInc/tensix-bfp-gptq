@@ -10,6 +10,12 @@
 
 ### Fixed
 
+- The LM head follows `--method` and `--bfp8` like every layer projection. Before, a bfp4 head
+  under GPTQ was always rounded with plain GPTQ, even with `--method exp` (the default), and a bfp8
+  head was always rounded to nearest, even with `--bfp8 gptq` or `--bfp8 exp`. Exports made with
+  v0.2.0 or earlier, or with any release before v0.3.0, which contains this fix, therefore have a head that their `rounding.*` record misdescribes. With
+  `--method gptq --bfp8 rtn` the head is bit for bit what it was. Exports made after the fix are
+  new weights: accuracy results of earlier exports do not carry over to them.
 - Shard names of `model.safetensors.index.json` are checked when the index is read: a name that
   is not a plain `.safetensors` file name (a path separator, `..`, an absolute path) is refused
   with a `ValueError` naming it, by `packed.py`, `tools/pack_tensix.py` and `tools/verify_grid.py`.

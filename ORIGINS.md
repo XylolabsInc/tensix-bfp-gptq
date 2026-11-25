@@ -27,9 +27,9 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 |---|---|---|---|---|---|
 | `.gitignore` | ours |  | 0 | 0 | ignore patterns |
 | `AGENTS.md` | ours |  | 40 | 0 | instructions for coding agents |
-| `CHANGELOG.md` | ours |  | 30 | 0 | documentation |
+| `CHANGELOG.md` | ours |  | 37 | 0 | documentation |
 | `CLAUDE.md` | ours |  | 0 | 0 | symbolic link to AGENTS.md |
-| `README.md` | ours |  | 154 | 0 | documentation |
+| `README.md` | ours |  | 158 | 0 | documentation |
 | `assets/xylolabs-lockup-dark.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `assets/xylolabs-lockup.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `configs/arete-27b.toml` | ours |  | 2 | 0 | the export configuration of a published checkpoint |
@@ -53,7 +53,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `tensix_bfp/answers.py` | ours |  | 377 | 10 | the answer check (answers.json's items, greedy, against the bf16 model) |
 | `tensix_bfp/bfp.py` | ours |  | 69 | 1 | TT-NN's bfloat8_b and bfloat4_b rounding in torch, written from TT-NN's documented format and checked against stock ttnn's own packing (`tests/test_ttnn_pack.py`) |
 | `tensix_bfp/data.py` | ours |  | 86 | 4 | downloads the calibration and evaluation texts at run time; no text is shipped |
-| `tensix_bfp/export.py` | ours |  | 481 | 13 | the exporter and its model families, through transformers' public API |
+| `tensix_bfp/export.py` | ours |  | 495 | 13 | the exporter and its model families, through transformers' public API |
 | `tensix_bfp/gptq.py` | ours |  | 93 | 1 | GPTQ (Frantar et al., 2022, arXiv:2210.17323), implemented from the paper |
 | `tensix_bfp/kl.py` | ours |  | 58 | 2 | mean KL, top-1 and top-5 against the bf16 model; its sequences are cut as llama.cpp's perplexity tool cuts them (the behavior, not its code) |
 | `tensix_bfp/ministral3.py` | ours |  | 39 | 3 | Ministral 3's release to a text-only checkpoint |
@@ -64,6 +64,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `tests/test_declared_sections.py` | ours |  | 127 | 4 | every declared section is packed and checked, conflicting formats and qkv_row_order exports are refused |
 | `tests/test_export_tiny.py` | ours |  | 74 | 6 |  |
 | `tests/test_gptq.py` | ours |  | 39 | 4 |  |
+| `tests/test_head_rounding.py` | ours |  | 71 | 3 | the LM head goes through the routine its format and the options name, on its grid, and unchanged for --method gptq --bfp8 rtn |
 | `tests/test_origins.py` | ours |  | 21 | 4 | every tracked file is listed in ORIGINS.md exactly once |
 | `tests/test_packed.py` | ours |  | 176 | 14 |  |
 | `tests/test_shard_names.py` | ours |  | 141 | 9 | shard names that leave their directory, and cache-style snapshots |
@@ -83,10 +84,10 @@ this repository pins, tt-metal v0.81.1.
    transformers v5.13.0 (5,909), the GPTQ reference implementation
    [IST-DASLab/gptq](https://github.com/IST-DASLab/gptq) (commit `2d65066`, 41),
    [AutoGPTQ](https://github.com/AutoGPTQ/AutoGPTQ) (commit `9f7d370`, 172) and
-   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,129 lines
-   checked, 128 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
+   [llama.cpp](https://github.com/ggml-org/llama.cpp) (commit `d3c3e24`, 4,152). Of 3,225 lines
+   checked, 131 are found in tt-metal's tree and 8 only in one of the other four trees. The lines found
    are license headers, import lines, calls of public APIs and common idioms.
-2. **Tokens.** Each of the 22 `.py`, `.cpp`, `.h` and `.sh` files was compared with every Python, C, C++, CUDA and
+2. **Tokens.** Each of the 23 `.py`, `.cpp`, `.h` and `.sh` files was compared with every Python, C, C++, CUDA and
    shell file of the same trees as a set of distinct 10-token sequences (comments dropped, and docstrings for Python):
    at most 3.70 % of a file's distinct sequences occur in any one upstream file (the highest is `tests/test_data.py`, closest
    to `tt-metal/models/demos/unet_3d/demo/config.py`; a file of 20 lines checked, so few sequences); 6 files reach 2.5 % or more. Among

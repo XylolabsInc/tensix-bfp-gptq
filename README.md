@@ -140,6 +140,9 @@ The other options:
   default, does).
 - `--no-tf32`: turns off TF32 for float32 matmuls on CUDA.
 
+`--method` and `--bfp8` apply to the LM head as they do to every layer projection: a bfp4 head is
+rounded like a bfp4 projection, a bfp8 head like a bfp8 projection, and a bf16 head is not rounded.
+
 The output loads with transformers like the original:
 
 | file | content |
@@ -249,6 +252,9 @@ here, using torch 2.10, transformers 5.22.1, safetensors 0.8.0, tokenizers 0.23.
 flash-linear-attention 0.6.0 for Qwen3.5), with calibration texts that match the recorded hashes.
 Take the variant from the export's `quant4.json`. Its `rounding.method` maps to `--method` and
 `rounding.bfp8` to `--bfp8`. If the manifest has no `lm_head_tensor`, pass `--manifest-format 1`.
+Exports made before the fix listed in [CHANGELOG.md](CHANGELOG.md) rounded the LM head with plain GPTQ
+(bfp4) or round to nearest (bfp8) whatever these options said, so only `--method gptq --bfp8 rtn`
+reproduces such a head.
 
 ## Tests
 
