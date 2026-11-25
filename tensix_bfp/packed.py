@@ -45,7 +45,7 @@ import json
 import re
 import shutil
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import torch
 from safetensors import safe_open
@@ -302,11 +302,38 @@ def check_tensor(packed, rec):
 # --- checkpoints ---------------------------------------------------------------------------------
 
 
+def _check_shard_name(name, index):
+    """name, when it is a plain file name ending in .safetensors; a ValueError naming it and the
+    index file otherwise (the names of an index file are untrusted input)."""
+    bad = (
+        not isinstance(name, str)
+        or not name.endswith(".safetensors")
+        or name in (".", "..")
+        or any(c in name for c in "/\\\0")
+        or PurePosixPath(name).is_absolute()
+        or PureWindowsPath(name).drive != ""
+        or PureWindowsPath(name).root != ""
+    )
+    if bad:
+        raise ValueError(f"{index}: shard name {name!r} is not a plain .safetensors file name")
+    return name
+
+
 def shards(model_dir):
-    """{tensor name: shard file name} of a checkpoint directory: its index, or every .safetensors."""
+    """{tensor name: shard file name} of a checkpoint directory: its index, or every .safetensors.
+    A shard name of the index must be a plain file name ending in .safetensors, or a ValueError
+    names it and the index file."""
     d = Path(model_dir)
     if (d / INDEX).exists():
-        return json.loads((d / INDEX).read_text())["weight_map"]
+        index = json.loads((d / INDEX).read_text())
+        weight_map = index.get("weight_map") if isinstance(index, dict) else None
+        if not isinstance(weight_map, dict):
+            raise ValueError(f"{d / INDEX}: weight_map is missing or not an object")
+        for tensor, shard in weight_map.items():
+            if not isinstance(shard, str):
+                raise ValueError(f"{d / INDEX}: weight_map entry {tensor!r} is not a string")
+            _check_shard_name(shard, d / INDEX)
+        return weight_map
     names = {}
     for f in sorted(d.glob("*.safetensors")):
         with safe_open(str(f), framework="pt") as g:
@@ -380,7 +407,10 @@ def verify(model_dir):
         records = read_manifest(d)["tensors"]
     except (OSError, TypeError, ValueError) as e:
         return [str(e)], 0
-    weight_map = shards(d)
+    try:
+        weight_map = shards(d)
+    except (OSError, ValueError) as e:
+        return [str(e)], 0
     problems = [
         f"{n}: listed in {PACK_JSON}, in no shard" for n in sorted(set(records) - set(weight_map))
     ]
@@ -410,8 +440,15 @@ def _copy_files(src, dst, skip):
             shutil.copy2(f, dst / f.name)
 
 
-def _out_dir(out_dir):
+def _out_dir(out_dir, names=()):
+    """The empty output directory, created; a ValueError when it is a symbolic link, or when one
+    of the shard names is not a plain file name or already exists there as a symbolic link."""
     o = Path(out_dir)
+    if o.is_symlink():
+        raise ValueError(f"{o}: the output directory is a symbolic link")
+    for name in (*(_check_shard_name(n, "output") for n in names), INDEX):
+        if (o / name).is_symlink():
+            raise ValueError(f"{o / name}: the output shard path is a symbolic link")
     if o.exists() and any(o.iterdir()):
         raise SystemExit(f"{o}: the output directory is not empty")
     o.mkdir(parents=True, exist_ok=True)
@@ -424,7 +461,7 @@ def unpack(model_dir, out_dir, check=True):
     d = Path(model_dir)
     records = read_manifest(d)["tensors"]
     weight_map = shards(d)
-    o = _out_dir(out_dir)
+    o = _out_dir(out_dir, sorted(set(weight_map.values())))
     for shard in sorted(set(weight_map.values())):
         with safe_open(str(d / shard), framework="pt") as g:
             meta = dict(g.metadata() or {})
@@ -481,13 +518,13 @@ def pack(src_dir, out_dir, at_pack=()):
     for rx, fmt in at_pack:
         _fmt_bits(fmt)
         rules.append((re.compile(rx), fmt))
-    o = _out_dir(out_dir)
     files = sorted(set(weight_map.values()))
     n = len(files)
     renamed = {
         f: "model.safetensors" if n == 1 else f"model-{i:05d}-of-{n:05d}.safetensors"
         for i, f in enumerate(files, 1)
     }
+    o = _out_dir(out_dir, list(renamed.values()))
     records, new_map, kept = {}, {}, []
     for f in files:
         out = {}
@@ -555,12 +592,20 @@ def main(argv=None):
         print(f"{checked} packed tensors checked, {len(problems)} problems")
         return 0 if checked and not problems else 1
     if a.command == "unpack":
-        print(unpack(a.model_dir, a.out_dir))
+        try:
+            print(unpack(a.model_dir, a.out_dir))
+        except ValueError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 1
         return 0
     rules = [tuple(x.rsplit("=", 1)) for x in a.at_pack]
     if any(len(r) != 2 for r in rules):
         ap.error("--at-pack takes REGEX=FMT")
-    records, kept = pack(a.src_dir, a.out_dir, rules)
+    try:
+        records, kept = pack(a.src_dir, a.out_dir, rules)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
     for name in kept:
         print(f"kept as stored (not tile-aligned): {name}")
     print(f"{len(records)} tensors packed, {len(kept)} kept as stored")

@@ -231,6 +231,38 @@ def test_checker_covers_global_linears():
                 assert f"MISMATCH {name}" in result.stdout
 
 
+def test_checker_reads_a_cache_style_snapshot():
+    """The shard files of a Hugging Face cache snapshot are links to ../../blobs/<hash>."""
+    tool = Path(__file__).resolve().parents[1] / "tools/pack_tensix.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "models--m"
+        snapshot = base / "snapshots" / "rev"
+        snapshot.mkdir(parents=True)
+        (base / "blobs").mkdir()
+        tensors = {
+            "model.layers.0.mlp.up_proj.weight": torch.full((32, 32), 1.25, dtype=torch.bfloat16),
+            "model.layers.0.mlp.down_proj.weight": torch.full((32, 32), 1.0, dtype=torch.bfloat16),
+        }
+        manifest = {
+            "layers": {
+                "0": {"mlp.up_proj": {"format": "bfp4"}, "mlp.down_proj": {"format": "bfp8"}}
+            },
+            "lm_head": "bf16",
+        }
+        weight_map = {key: "weights.safetensors" for key in tensors}
+        save_file(tensors, str(base / "blobs" / "0123abcd"))
+        (snapshot / "weights.safetensors").symlink_to(Path("..") / ".." / "blobs" / "0123abcd")
+        (snapshot / "quant4.json").write_text(json.dumps(manifest))
+        (snapshot / "model.safetensors.index.json").write_text(
+            json.dumps({"weight_map": weight_map})
+        )
+        result = subprocess.run(
+            [sys.executable, "-I", str(tool), str(snapshot)], capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "2 matrices packed with TT-NN" in result.stdout
+
+
 if __name__ == "__main__":
     if ttnn is None:
         print("ttnn is not installed: skipped")

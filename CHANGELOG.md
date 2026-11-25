@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Shard names of `model.safetensors.index.json` are checked when the index is read: a name that
+  is not a plain `.safetensors` file name (a path separator, `..`, an absolute path) is refused
+  with a `ValueError` naming it, by `packed.py`, `tools/pack_tensix.py` and `tools/verify_grid.py`.
+  `unpack` and `pack` also refuse a symbolic-link output directory or output shard path, and
+  write nothing before every name has passed. A cache-style snapshot (shard files that are links
+  to `../../blobs/<hash>`) still reads, also through `tools/pack_tensix.py`.
+
 ## 0.2.0 (2026-11-18)
 
 ### Added

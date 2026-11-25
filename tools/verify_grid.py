@@ -29,7 +29,9 @@ import sys
 import torch
 from safetensors import safe_open
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [HERE, os.path.join(HERE, "..", "tensix_bfp")]
+import packed as packed_checkpoint  # noqa: E402
 import row_order  # noqa: E402
 
 MANTISSA_BITS = {"bfp4": 3, "bfp8": 7}
@@ -127,6 +129,17 @@ def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
     return q
 
 
+def index_weight_map(model_dir):
+    """The index's weight map; exits with the error when a shard name leaves the directory."""
+    index = os.path.join(model_dir, packed_checkpoint.INDEX)
+    if not os.path.exists(index):
+        raise SystemExit(f"ERROR: {index} is missing")
+    try:
+        return packed_checkpoint.shards(model_dir)
+    except ValueError as e:
+        raise SystemExit(f"ERROR: {e}") from None
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("model_dir", nargs="?", default=".")
@@ -140,7 +153,7 @@ def main():
     manifest = json.load(open(os.path.join(d, "quant4.json")))
     order = row_order.check_declared(manifest)
     config = row_order.load_config(d, order)
-    weight_map = json.load(open(os.path.join(d, "model.safetensors.index.json")))["weight_map"]
+    weight_map = index_weight_map(d)
     want = set(a.layers.split(",")) if a.layers else None
     weights = list(quantized_weights(manifest, weight_map, want))
     checked, off = 0, 0
