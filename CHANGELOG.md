@@ -1,21 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-27)
 
 ### Added
 
 - `tests/test_bfp.py`: directed edge vectors for `bfp()` in both formats (ties, the clamp at the top
   code, subnormal inputs flushed to zero, zero blocks, one non-zero value, both signs), with
   expected values frozen from stock TT-NN 0.81.1 and checked again when ttnn is installed.
+- `tools/verify_grid.py` and `tools/pack_tensix.py` apply a declared `qkv_row_order` to fused q/k/v
+  projections before checking or packing. Both tools now check the quantized matrices listed under
+  `global_linears` and `extra` in `quant4.json`.
 
 ### Fixed
 
-- The LM head follows `--method` and `--bfp8` like every layer projection. Before, a bfp4 head
-  under GPTQ was always rounded with plain GPTQ, even with `--method exp` (the default), and a bfp8
-  head was always rounded to nearest, even with `--bfp8 gptq` or `--bfp8 exp`. Exports made with
-  v0.2.0 or earlier, or with any release before v0.3.0, which contains this fix, have a head that their `rounding.*` record misdescribes. With
-  `--method gptq --bfp8 rtn` the head is bit for bit what it was. Exports made after the fix are
-  new weights: accuracy results of earlier exports do not carry over to them.
+- A `bf16` LM head is stored without BFP rounding. A `bfloat4_b` head follows `--method` when GPTQ
+  is enabled, and a `bfloat8_b` head follows `--bfp8`. In v0.2.0 and earlier, quantized heads used
+  plain GPTQ for `bfloat4_b` with GPTQ enabled and round to nearest otherwise, so the `rounding.*`
+  record could misdescribe the head. A `bf16` head matches the earlier export with any rounding
+  options. A `bfloat4_b` head matches with `--method gptq` or with GPTQ disabled, and a `bfloat8_b`
+  head matches with `--bfp8 rtn` or with `--bfp8 gptq` and GPTQ disabled. The other settings
+  round the head differently and can change its weights, so reevaluate accuracy if they change.
 - Shard names of `model.safetensors.index.json` are checked when the index is read: a name that
   is not a plain `.safetensors` file name (a path separator, `..`, an absolute path) is refused
   with a `ValueError` naming it, by `packed.py`, `tools/pack_tensix.py` and `tools/verify_grid.py`.
@@ -26,7 +30,7 @@
   list, `declared_tensors` in `tensix_bfp/packed.py`: layer projections, the LM head,
   `global_linears` and `extra`.
   `pack` now packs the global linears and extras, a tensor declared with two different formats is
-  an error, and a format that is neither `bfp4`, `bfp8` nor `bf16` is an error. `pack` refuses an
+  an error, and a format that is neither `bfp4`, `bfp8` nor `bf16` is an error. `packed.pack` refuses an
   export with a `qkv_row_order`, and `tools/row_order.py` checks the fused row count without
   `assert`. `packed.py` still works copied on its own.
 

@@ -19,15 +19,14 @@ This tool quantizes the linear layers of a Hugging Face LLM to TT-NN's block flo
 ordinary bf16 safetensors checkpoint whose values already sit on the grid. TT-NN packs it without
 quantizing again, and transformers on a CPU or GPU runs exactly the weights the NPU will run.
 
-[DEVELOPMENT.md](DEVELOPMENT.md) says how this repository is developed, from Tenstorrent's open software stack only; [ORIGINS.md](ORIGINS.md) says where every file comes from and how that was checked.
+Development rules and file origins are in [DEVELOPMENT.md](DEVELOPMENT.md) and [ORIGINS.md](ORIGINS.md).
 
 ## How it works
 
 TT-NN computes `x @ W` with `W` laid out `[in, out]`, the transpose of a PyTorch `Linear` weight. In
 tile layout, each block of 16 consecutive values in a row shares one 8-bit exponent, the largest of
 the 16. Each value keeps a sign and a mantissa with an explicit leading one: 3 bits for BFP4, 7 for
-BFP8, so 4.5 and 8.5 bits a weight. `tensix_bfp.bfp.bfp()` matches tt-metal's host packer bit for
-bit, and `tests/test_ttnn_pack.py` checks it against `ttnn.as_tensor`.
+BFP8, so 4.5 and 8.5 bits a weight. `tensix_bfp.bfp.bfp()` matches tt-metal's host packer bit for bit.
 
 GPTQ (Frantar et al., 2022) quantizes one input channel at a time and spreads each column's error
 over the columns not yet quantized. For
@@ -47,13 +46,8 @@ pip install ".[ttnn]"    # also ttnn 0.81.1, for tools/pack_tensix.py and the tt
 pip install ".[test]"    # pytest
 ```
 
-This needs Python 3.11 or later and is tested on 3.11 to 3.15. `.[ttnn]` needs Python 3.12: ttnn
-0.81.1 ships wheels only for CPython 3.10 and 3.12, on Linux x86_64 with glibc 2.34 or later. On
-any other Python or platform the extra installs without ttnn.
-
-It is tested on Ubuntu 24.04. tt-metal v0.81.1 is built for Ubuntu 22.04 and 24.04; Ubuntu 26.04
-is not on that list. Its system Python is 3.14, so
-`.[ttnn]` there needs a separate Python 3.12, such as `uv venv --python 3.12`.
+The package needs Python 3.11 or later. The packing tool and TT-NN tests need `ttnn` 0.81.1.
+Install it with `.[ttnn]` under Python 3.12 on Linux x86_64 with glibc 2.34 or later.
 
 ttnn packs on the host but still needs a Tenstorrent card or Tenstorrent's simulator. Without a
 card, use [ttsim](https://github.com/tenstorrent/ttsim) (v1.16.0). Device round trips
@@ -105,11 +99,11 @@ token, as in llama.cpp's perplexity tool.
 
 ```
 python -m tensix_bfp.export --config configs/qwen3-4b.toml --model Qwen3-4B --out Qwen3-4B-BFP4 \
-    --variant all=bfp4,lm_head=bf16,gptq [--device cuda:0] [--data DIR]
+    --variant all=bfp4,lm_head=bf16,gptq [--device DEVICE] [--data DIR]
 ```
 
-`--model` is the original checkpoint. One decoder layer runs at a time, so the GPU needs room for
-one layer and the calibration activations, not the whole model.
+`--model` is the original checkpoint. The exporter processes one decoder layer at a time. Allow
+enough memory for that layer and its calibration activations.
 
 A variant is a comma list:
 
@@ -129,7 +123,7 @@ The other options:
   GPTQ.
 - `--manifest-format 1|2`: whether `quant4.json` records the LM head's source tensor (2, the
   default, does).
-- `--no-tf32`: turns off TF32 for float32 matmuls on CUDA.
+- Use `--no-tf32` to turn off TF32 for float32 matrix multiplications.
 
 `--method` and `--bfp8` apply to the LM head as they do to every layer projection: a bfp4 head is
 rounded like a bfp4 projection, a bfp8 head like a bfp8 projection, and a bf16 head is not rounded.
@@ -172,11 +166,9 @@ missing from the weight map fails. The tools check each matrix in its stored row
 fused q/k/v projection when `quant4.json` has a top-level `qkv_row_order`.
 
 Some exports store the fused `self_attn.q_k_v_proj` in the base model's row order while its values lie
-on the block-float grid only in another row order. `qkv_row_order` names that order; the one known
-value is `"spark-llama"`, for Spark-X2.6-4B's exports, and an absent field means no permutation. The
-tools then reorder the projection's rows (q heads, k heads, v heads) before the check or the pack:
-each q and k head puts every rotary pair side by side, with the same permutation for q and k, and the
-v rows stay in place (`tools/row_order.py`).
+on the block-float grid only in another row order. `qkv_row_order` names that order. The supported
+value `"spark-llama"` puts each rotary pair side by side in the q and k heads before checking or
+packing and leaves the v rows in place. Both tools use the stored row order when the field is absent.
 
 ### Packed checkpoints
 
@@ -213,7 +205,7 @@ when it packs them (for example a drafter's `mtp.*` matrices), and records that 
 ### KL divergence
 
 ```
-python -m tensix_bfp.kl --config configs/qwen3-4b.toml --base Qwen3-4B --model Qwen3-4B-BFP4 [--device cuda:0]
+python -m tensix_bfp.kl --config configs/qwen3-4b.toml --base Qwen3-4B --model Qwen3-4B-BFP4 [--device DEVICE]
 ```
 
 This runs the config's evaluation sequences through the bf16 original and the export. It prints
@@ -237,14 +229,17 @@ export gets it right with thinking on. `prompts` writes the token ids for anothe
 
 ## Reproducing a published export
 
-The published exports were made on CUDA (compute capability 9.0) with TF32 on, which is the default
-here, using torch 2.10, transformers 5.22.1, safetensors 0.8.0, tokenizers 0.23.3 (and
-flash-linear-attention 0.6.0 for Qwen3.5), with calibration texts that match the recorded hashes.
+Use torch 2.10, transformers 5.22.1, safetensors 0.8.0, tokenizers 0.23.3, and calibration texts
+that match the recorded hashes. For Qwen3.5, also use flash-linear-attention 0.6.0.
 Take the variant from the export's `quant4.json`. Its `rounding.method` maps to `--method` and
 `rounding.bfp8` to `--bfp8`. If the manifest has no `lm_head_tensor`, pass `--manifest-format 1`.
-Exports made before the fix listed in [CHANGELOG.md](CHANGELOG.md) rounded the LM head with plain GPTQ
-(bfp4) or round to nearest (bfp8) whatever these options said, so only `--method gptq --bfp8 rtn`
-reproduces such a head.
+
+The LM head from v0.2.0 or earlier can be reproduced in all three formats with
+`--method gptq --bfp8 rtn`. A `bf16` head is stored without BFP rounding and matches the earlier head
+with any rounding options. A `bfloat4_b` head follows `--method` when GPTQ is enabled. It matches
+the earlier head with `--method gptq` or with GPTQ disabled. A `bfloat8_b` head follows `--bfp8` and
+matches the earlier head with `--bfp8 rtn` or with `--bfp8 gptq` and GPTQ disabled. The other settings
+round the head differently and can change its weights, so reevaluate accuracy if they change.
 
 ## Tests
 

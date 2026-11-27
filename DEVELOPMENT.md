@@ -2,39 +2,35 @@
 
 tensix-bfp-gptq is written for Tenstorrent Tensix NPUs from Tenstorrent's open software stack only.
 
-## What is used
+## Sources
 
-- **Upstream code and tools:** tt-metal and TT-NN at the version pinned in this repository (v0.81.1), the ttsim
-  simulator, tt-forge and tt-mlir where named, and Tenstorrent's public documentation and community answers.
-- **Model code and weights:** public Hugging Face repositories under the licenses their cards declare; files adapted
-  from them keep their copyright lines and are listed in ORIGINS.md.
-- **Our own designs:** each change starts as a written specification of our own design (the algorithm, the data
-  layout, the API, the tests and their tolerances). The specification is reviewed before any code is written, and it
-  contains no third-party code.
+- Use the pinned tt-metal and TT-NN release (v0.81.1), the ttsim simulator, tt-forge and tt-mlir
+  where named, and Tenstorrent's public documentation and community answers.
+- Use public Hugging Face model code and weights under the licenses declared in their model cards.
+  Keep copyright lines in adapted files and record their sources in ORIGINS.md.
 
-## What is not used
+## Hardware-specific work
 
-While code for this repository is developed, nothing is used from any hardware vendor other than Tenstorrent's open
-releases: no other vendor's SDK, source code, documentation, test facility or hardware. Defaults that depend on a
-device (core counts, memory banks, L1 sizes) are read from the device at run time; tuned settings are starting
-points, not measurements of a particular device.
+Use only Tenstorrent's public hardware, SDKs, source code, documentation, and test facilities for
+hardware-specific work. Read device-dependent defaults such as core counts, memory banks, and L1
+sizes at run time. Treat tuned settings as starting points.
 
 ## How a change is made
 
-1. A specification is written and reviewed for third-party content.
-2. A developer who works only from the specification and the public stack implements it in a clean checkout that
-   holds this repository, the pinned upstream release and ttsim, and nothing else.
-3. The change is tested on ttsim with the checks named in AGENTS.md and RUNNING.md; correctness is checked against
-   float64 or bf16 references with the tolerances the specification fixes.
-4. Every file's origin is recorded in ORIGINS.md (and NOTICE for files that follow tt-metal), with SPDX headers.
-5. Each commit is reviewed for third-party content, including a token comparison against code we may not use, before
-   it is pushed; commits are signed.
+1. Write a specification for the project's own design covering the algorithm, data layout, API, tests,
+   and tolerances. Review it for third-party content and remove any third-party code before implementation.
+2. Implement the change using only the specification and the public stack. Work in a clean checkout
+   containing only this repository, the pinned upstream release, and ttsim.
+3. Test each change on ttsim using the checks in [AGENTS.md](AGENTS.md) and the setup in [README.md](README.md).
+   Compare against float64 or bf16 references using the tolerances in the specification.
+4. Record each file's origin in ORIGINS.md and include SPDX headers. List files that follow tt-metal in NOTICE.
+5. Review each commit for third-party content before pushing it. Include a token comparison against code
+   outside the permitted sources. Sign each commit.
 
 ## Releases before this process
 
-v0.1.0 (2026-11-16) predates it. It was written by Xylolabs from upstream tt-metal, TT-NN and ttsim only (see
-ORIGINS.md), and before release it was checked by token comparison against code we may not use, with no match beyond
-upstream code. Releases after v0.1.0 follow the process above.
+Xylolabs developed v0.1.0 (2026-11-16) using upstream tt-metal, TT-NN, and ttsim. Each release after
+v0.1.0 follows the process above.
 
 ## Log
 

@@ -25,9 +25,9 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 |---|---|---|---|---|---|
 | `.gitignore` | ours |  | 0 | 0 | ignore patterns |
 | `AGENTS.md` | ours |  | 40 | 0 | instructions for coding agents |
-| `CHANGELOG.md` | ours |  | 36 | 0 | documentation |
+| `CHANGELOG.md` | ours |  | 40 | 0 | documentation |
 | `CLAUDE.md` | ours |  | 0 | 0 | symbolic link to AGENTS.md |
-| `README.md` | ours |  | 149 | 0 | documentation |
+| `README.md` | ours |  | 144 | 0 | documentation |
 | `assets/xylolabs-lockup-dark.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `assets/xylolabs-lockup.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `configs/arete-27b.toml` | ours |  | 2 | 0 | the export configuration of a published checkpoint |
@@ -46,7 +46,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `configs/qwen35-9b.toml` | ours |  | 3 | 0 | the export configuration of a published checkpoint |
 | `configs/qwen38-27b.toml` | ours |  | 2 | 0 | the export configuration of a published checkpoint |
 | `pyproject.toml` | ours |  | 25 | 0 | package metadata |
-| `tensix_bfp/__init__.py` | ours |  | 6 | 1 | package marker |
+| `tensix_bfp/__init__.py` | ours |  | 5 | 1 | package marker |
 | `tensix_bfp/answers.json` | ours |  | 47 | 0 | the answer-check items, written for this repository |
 | `tensix_bfp/answers.py` | ours |  | 377 | 10 | the answer check (answers.json's items, greedy, against the bf16 model) |
 | `tensix_bfp/bfp.py` | ours |  | 69 | 1 | TT-NN's bfloat8_b and bfloat4_b rounding in torch, written from TT-NN's documented format and checked against stock ttnn's own packing (`tests/test_ttnn_pack.py`) |
@@ -90,6 +90,18 @@ this repository pins, tt-metal v0.81.1.
    at most 3.70 % of a file's distinct sequences occur in any one upstream file (the highest is `tests/test_data.py`, closest
    to `tt-metal/models/demos/unet_3d/demo/config.py`; a file of 20 lines checked, so few sequences); 6 files reach 2.5 % or more. Among
    the files of class "ours" with 50 or more lines checked, the highest is 3.37 % (`tools/pack_tensix.py`).
+3. **v0.3.0.** The release adds or changes `CHANGELOG.md`, `DEVELOPMENT.md`, `ORIGINS.md`, `README.md`,
+   `pyproject.toml`, `tensix_bfp/__init__.py`, `tensix_bfp/export.py`, `tensix_bfp/packed.py`,
+   `tests/test_bfp.py`, `tests/test_check_tools.py`, `tests/test_declared_sections.py`,
+   `tests/test_head_rounding.py`, `tests/test_origins.py`, `tests/test_packed.py`, `tests/test_shard_names.py`,
+   `tests/test_ttnn_pack.py`, `tools/pack_tensix.py`, `tools/row_order.py`, and `tools/verify_grid.py`.
+   All 19 files are class "ours". The 2026-11-27 comparison used the same six upstream trees at the same
+   versions as in 1. Using the line comparison in 1, 106 of 2,356 lines matched at least one tree, including
+   99 in the tt-metal source checkout. The share of each Python file's distinct 10-token sequences (comments and
+   docstrings dropped) found in any one upstream Python, C, C++ or shell file was at most 3.4 %
+   (`tools/pack_tensix.py`). The `ttnn` 0.81.1 wheel's runtime tree contained 5,489 text files in this run
+   (6,665 in the earlier inventory). The tt-metal source and transformers counts differed by 13 and 4 files,
+   respectively. The other three counts stayed the same.
 
 ## Third-party model code and configs
 
