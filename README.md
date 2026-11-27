@@ -56,7 +56,7 @@ is not on that list. Its system Python is 3.14, so
 `.[ttnn]` there needs a separate Python 3.12, such as `uv venv --python 3.12`.
 
 ttnn packs on the host but still needs a Tenstorrent card or Tenstorrent's simulator. Without a
-card, use [ttsim](https://github.com/tenstorrent/ttsim) (tested with v1.16.0). Device round trips
+card, use [ttsim](https://github.com/tenstorrent/ttsim) (v1.16.0). Device round trips
 (`--device`, the DRAM test) also need SFPI 7.89.0:
 
 ```
@@ -255,4 +255,4 @@ python tests/test_ttnn_pack.py   # the ttnn tests alone
 
 ## License
 
-Apache-2.0, see `LICENSE`. This is an independent project, not affiliated with Tenstorrent.
+Apache-2.0, see `LICENSE`.
