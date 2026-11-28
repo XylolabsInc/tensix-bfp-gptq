@@ -383,7 +383,7 @@ def _shard_problems(d, weight_map, required):
                     seen.add(name)
     for name in sorted(set(required) - set(weight_map)):
         problems.append(f"{name}: listed but in no shard")
-    for name in sorted(set(required) & set(weight_map) - seen):
+    for name in sorted(set(weight_map) - seen):
         problems.append(f"{name}: missing from its indexed shard")
     return problems
 

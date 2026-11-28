@@ -373,3 +373,50 @@ def test_non_object_manifest_reports_error(tmp_path):
     (tmp_path / packed.PACK_JSON).write_text("[]")
     problems, checked = packed.verify(tmp_path)
     assert checked == 0 and "object" in problems[0]
+
+
+@pytest.mark.parametrize("wrong_shard", [False, True])
+def test_missing_indexed_bf16_is_rejected(tmp_path, wrong_shard):
+    src, dst = tmp_path / "src", tmp_path / "packed"
+    src.mkdir()
+    export_dir(src)
+    name = "model.embed_tokens.weight"
+    b = src / "b.safetensors"
+    tensors = load_file(str(b))
+    value = tensors.pop(name)
+    save_file(tensors, str(b))
+    if wrong_shard:
+        a = src / "a.safetensors"
+        tensors = load_file(str(a))
+        tensors[name] = value
+        save_file(tensors, str(a))
+    with pytest.raises(ValueError, match=name):
+        packed.pack(src, dst, [("embed_tokens", "bfp4")])
+    assert not dst.exists()
+
+    # Make a valid packed checkpoint and then corrupt its unquantized index entry.
+    tensors = load_file(str(b))
+    tensors[name] = value
+    save_file(tensors, str(b))
+    if wrong_shard:
+        a = src / "a.safetensors"
+        tensors = load_file(str(a))
+        del tensors[name]
+        save_file(tensors, str(a))
+    packed.pack(src, dst)
+    b = dst / "model-00002-of-00002.safetensors"
+    tensors = load_file(str(b))
+    del tensors[name]
+    save_file(tensors, str(b))
+    if wrong_shard:
+        a = dst / "model-00001-of-00002.safetensors"
+        tensors = load_file(str(a))
+        tensors[name] = value
+        save_file(tensors, str(a))
+    assert any(name in p for p in packed.verify(dst)[0])
+    with pytest.raises(ValueError, match=name):
+        list(packed.iter_bf16(dst))
+    with pytest.raises(ValueError, match=name):
+        packed.load_bf16(dst)
+    with pytest.raises(ValueError, match=name):
+        packed.unpack(dst, tmp_path / "unpacked")
