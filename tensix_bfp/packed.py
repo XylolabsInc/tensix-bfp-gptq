@@ -491,11 +491,11 @@ SKIP = ("mtp.", "visual.", "vision", "audio", "depth_decoder")
 
 
 def _format(record, label):
-    """A record's block format, or None for a bf16 (or format-less) entry; a ValueError naming the
+    """A record's format, or None for a format-less entry; a ValueError naming the
     tensor and the format for any other."""
     fmt = record.get("format") if isinstance(record, dict) else None
     if fmt is None or fmt == "bf16" or fmt in BLOCK_FORMATS:
-        return fmt if fmt in BLOCK_FORMATS else None
+        return fmt
     raise ValueError(f"{label}: format {fmt!r} is neither bfp4, bfp8 nor bf16")
 
 
@@ -544,7 +544,7 @@ def _projection(layer, name, weight_map):
 
 
 def _declarations(manifest, weight_map, layers):
-    """(tensor, format, selected) for each declaration of a block format, in manifest order:
+    """(tensor, format, selected) for each declaration of a format, in manifest order:
     selected is False for a layer outside `layers`, which is resolved only to find conflicts."""
     for layer, projections in manifest.get("layers", {}).items():
         selected = layers is None or layer in layers
@@ -555,7 +555,7 @@ def _declarations(manifest, weight_map, layers):
             try:
                 keys = _projection(layer, name, weight_map)
             except ValueError:
-                if selected:
+                if selected and fmt in BLOCK_FORMATS:
                     raise
                 continue
             for k in keys:
@@ -564,13 +564,21 @@ def _declarations(manifest, weight_map, layers):
     if fmt is not None:
         name = manifest.get("lm_head_tensor", "lm_head.weight")
         if not isinstance(name, str) or name not in weight_map:
-            raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
-        yield name, fmt, True
+            if fmt in BLOCK_FORMATS:
+                raise ValueError(f"quantized LM head {name!r} is missing from the weight map")
+        else:
+            yield name, fmt, True
     for section, label in (("global_linears", "global linear"), ("extra", "extra matrix")):
         for name, record in manifest.get(section, {}).items():
             fmt = _format(record, f"{label} {name!r}")
             if fmt is not None:
-                yield _plain(name, weight_map, label), fmt, True
+                try:
+                    key = _plain(name, weight_map, label)
+                except ValueError:
+                    if fmt in BLOCK_FORMATS:
+                        raise
+                    continue
+                yield key, fmt, True
 
 
 def declared_tensors(manifest, weight_map, layers=None):
@@ -584,7 +592,7 @@ def declared_tensors(manifest, weight_map, layers=None):
     for name, fmt, selected in _declarations(manifest, weight_map, layers):
         if formats.setdefault(name, fmt) != fmt:
             raise ValueError(f"tensor {name!r} is declared as {formats[name]} and as {fmt}")
-        if selected:
+        if selected and fmt in BLOCK_FORMATS:
             listed[name] = fmt
     return list(listed.items())
 
