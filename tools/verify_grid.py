@@ -61,6 +61,7 @@ def on_grid(w_in_out: torch.Tensor, bits: int) -> torch.Tensor:
     m = torch.round(blocks.abs() / step)  # torch.round rounds half to even
     m = m.clamp(max=2**bits - 1)
     q = torch.sign(blocks) * m * step
+    q = torch.where(expo == 0, 0, q)
     q = q.reshape(rows, -1)[:, :cols]
     return q
 
