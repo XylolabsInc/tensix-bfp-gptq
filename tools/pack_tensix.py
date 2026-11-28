@@ -26,6 +26,7 @@ Exit status 0 when every packed matrix unpacks to its stored values, 1 otherwise
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -84,6 +85,8 @@ def main():
     weight_map = index_weight_map(d)
     want = set(a.layers.split(",")) if a.layers else None
     weights = list(quantized_weights(manifest, weight_map, want))
+    if a.cache_dir:
+        os.makedirs(a.cache_dir, exist_ok=True)
     device = ttnn.open_device(device_id=0) if a.device else None
     packed = mismatched = 0
     handles = {}
@@ -99,7 +102,8 @@ def main():
                 m = row_order.reorder(m, name, config, order)
                 w = m.t().contiguous()  # [in, out]: the layout TT-NN's matmul reads
                 tag = f"{name}.{e}" if full.dim() == 3 else name
-                cache = os.path.join(a.cache_dir, f"{tag}.{use}") if a.cache_dir else None
+                key = hashlib.sha256(tag.encode()).hexdigest()
+                cache = os.path.join(a.cache_dir, f"{key}.{use}") if a.cache_dir else None
                 t = ttnn.as_tensor(
                     w,
                     dtype=DTYPES[use],
