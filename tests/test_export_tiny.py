@@ -274,3 +274,27 @@ def test_hessian_normalization_uses_model_epsilon(setup, tmp_path, monkeypatch):
     x = torch.tensor([[0.0001, 0.0002]])
     expected = x * torch.rsqrt(x.square().mean(-1, keepdim=True) + 0.002)
     assert torch.equal(original(x, 0.002), expected)
+
+
+def test_tied_bf16_head_preserves_embedding(setup, tmp_path):
+    from safetensors.torch import load_file
+    from transformers import Qwen3ForCausalLM
+
+    base, data, models = setup
+    original = load_file(str(models["qwen3"] / "model.safetensors"))["model.embed_tokens.weight"]
+    out = run(base, data, models, "qwen3", "all=bf16,lm_head=bf16", tmp_path / "out")
+    index = json.loads((out / "model.safetensors.index.json").read_text())["weight_map"]
+    assert index["model.embed_tokens.weight"] == index["lm_head.weight"] == "head.safetensors"
+    model = Qwen3ForCausalLM.from_pretrained(out)
+    assert torch.equal(model.model.embed_tokens.weight, original)
+    assert torch.equal(model.lm_head.weight, original)
+
+
+def test_tied_gptq_head_matches_embedding(setup, tmp_path):
+    from transformers import Qwen3ForCausalLM
+
+    base, data, models = setup
+    out = run(base, data, models, "qwen3", "all=bf16,lm_head=bfp4,gptq", tmp_path / "out")
+    model = Qwen3ForCausalLM.from_pretrained(out)
+    assert torch.equal(model.model.embed_tokens.weight, model.lm_head.weight)
+    assert on_grid(model.lm_head.weight.float(), "bfp4")

@@ -192,3 +192,43 @@ def test_prefixed_head_uses_selected_name(tmp_path, manifest_format):
     assert index[name] == "head.safetensors"
     if manifest_format == 2:
         assert manifest["lm_head_tensor"] == name
+
+
+def test_prefixed_head_export_from_two_shards(tmp_path):
+    from types import SimpleNamespace
+
+    from safetensors.torch import load_file, save_file
+
+    src, out = tmp_path / "src", tmp_path / "out"
+    src.mkdir()
+    out.mkdir()
+    head, norm, other = "wrapper.lm_head.weight", "model.norm.weight", "model.other.weight"
+    save_file(
+        {head: torch.ones(32, 32), other: torch.full((32, 32), 2.0)}, str(src / "a.safetensors")
+    )
+    save_file({norm: torch.ones(32)}, str(src / "b.safetensors"))
+    source_index = {head: "a.safetensors", other: "a.safetensors", norm: "b.safetensors"}
+    (src / "model.safetensors.index.json").write_text(json.dumps({"weight_map": source_index}))
+    md = SimpleNamespace(
+        head_name=head,
+        fam=SimpleNamespace(prefix="model.", final_norm="norm", embed="embed_tokens"),
+        ckpt=SimpleNamespace(dir=src, index=source_index),
+        untied=lambda: True,
+    )
+    variant = SimpleNamespace(of=lambda group: "bfp4", tag=lambda: "test")
+    rounded = torch.full((32, 32), 0.5)
+    manifest = {}
+    E.save_head(md, variant, out, torch.full((32,), 3.0), rounded, manifest, 2)
+    index = json.loads((out / "model.safetensors.index.json").read_text())["weight_map"]
+    state = {name: load_file(str(out / shard))[name] for name, shard in index.items()}
+    model = torch.nn.Module()
+    model.wrapper = torch.nn.Module()
+    model.wrapper.lm_head = torch.nn.Linear(32, 32, bias=False)
+    model.model = torch.nn.Module()
+    model.model.norm = torch.nn.LayerNorm(32, bias=False)
+    model.model.other = torch.nn.Linear(32, 32, bias=False)
+    model.load_state_dict(state)
+    assert manifest["lm_head_tensor"] == head
+    assert torch.equal(model.wrapper.lm_head.weight, rounded)
+    assert torch.equal(model.model.norm.weight, torch.full((32,), 3.0))
+    assert torch.equal(model.model.other.weight, torch.full((32, 32), 2.0))
