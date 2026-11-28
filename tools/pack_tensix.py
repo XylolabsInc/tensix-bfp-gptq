@@ -48,6 +48,13 @@ def quantized_weights(manifest, weight_map, layers=None):
     return packed_checkpoint.declared_tensors(manifest, weight_map, layers)
 
 
+def cache_file(cache_dir, tag, w, fmt):
+    """The TT-NN cache file of matrix w as packed: named by its tensor, format, dtype, shape and
+    bytes, so that a changed weight or row order gets a new file instead of an old one."""
+    key = f"{tag}\0{fmt}\0{w.dtype}\0{list(w.shape)}\0{packed_checkpoint.sha256(w)}"
+    return os.path.join(cache_dir, f"{hashlib.sha256(key.encode()).hexdigest()}.{fmt}")
+
+
 def index_weight_map(model_dir):
     """The index's weight map; exits with the error when a shard name leaves the directory."""
     index = os.path.join(model_dir, packed_checkpoint.INDEX)
@@ -102,8 +109,7 @@ def main():
                 m = row_order.reorder(m, name, config, order)
                 w = m.t().contiguous()  # [in, out]: the layout TT-NN's matmul reads
                 tag = f"{name}.{e}" if full.dim() == 3 else name
-                key = hashlib.sha256(tag.encode()).hexdigest()
-                cache = os.path.join(a.cache_dir, f"{key}.{use}") if a.cache_dir else None
+                cache = cache_file(a.cache_dir, tag, w, use) if a.cache_dir else None
                 t = ttnn.as_tensor(
                     w,
                     dtype=DTYPES[use],
