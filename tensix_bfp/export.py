@@ -1008,8 +1008,8 @@ def export(
             new = []
             for x, c in zip(cal, cctx, strict=True):
                 p = md.fam.run_layer(m, x, md.rope(x.shape[1], i), parts=True, ctx=md.at(c, i))
-                h_in.add(plain_norm(x))
-                h_mlp.add(plain_norm(p[2]))
+                h_in.add(plain_norm(x, md.hf.rms_norm_eps))
+                h_mlp.add(plain_norm(p[2], md.hf.rms_norm_eps))
                 new.append(p[5])
             cal = new
             store = symmetric({"in": h_in.get(), "mlp": h_mlp.get(), **rec.store(), "n": n_tok})
@@ -1030,7 +1030,7 @@ def export(
     if v.gptq and uses_gptq(fmt, bfp8):
         hh = Hessian(md.dim)
         for x in cal:
-            hh.add(plain_norm(x))
+            hh.add(plain_norm(x, md.hf.rms_norm_eps))
         hh = symmetric({"head": hh.get()})["head"]
         dn = md.fam.norm_offset + nw
         prep = gptq_prep(dn[:, None] * hh * dn[None, :], True, v.damp)
