@@ -454,3 +454,26 @@ def test_retry_after_late_shard_failure(tmp_path, operation):
         save_file(tensors, str(shard))
         packed.unpack(dst, out)
     assert not list(tmp_path.glob(".*-*/"))
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_verify_reports_unreadable_indexed_shard(tmp_path, corrupt):
+    src, dst = tmp_path / "src", tmp_path / "packed"
+    src.mkdir()
+    export_dir(src)
+    packed.pack(src, dst)
+    shard = dst / "model-00002-of-00002.safetensors"
+    if corrupt:
+        shard.write_bytes(b"corrupt")
+    else:
+        shard.unlink()
+    problems, checked = packed.verify(dst)
+    assert problems and checked == 0
+    result = subprocess.run(
+        [sys.executable, "-I", str(ROOT / "tensix_bfp/packed.py"), "verify", str(dst)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "BAD:" in result.stdout and "Traceback" not in result.stderr

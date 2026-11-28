@@ -51,7 +51,7 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import torch
-from safetensors import safe_open
+from safetensors import SafetensorError, safe_open
 from safetensors.torch import save_file
 
 FORMAT = "tensix-bfp-tiles"
@@ -431,27 +431,24 @@ def verify(model_dir):
     """(problems, number of packed tensors checked) of a packed checkpoint: check_tensor for each
     tensor tensix_pack.json lists, listed tensors no shard holds, and U8 tensors it does not list."""
     d = Path(model_dir)
+    problems, checked = [], 0
     try:
         records = read_manifest(d)["tensors"]
-    except (OSError, TypeError, ValueError) as e:
-        return [str(e)], 0
-    try:
         weight_map = shards(d)
-    except (OSError, ValueError) as e:
-        return [str(e)], 0
-    problems = _shard_problems(d, weight_map, records)
-    checked = 0
-    for shard in sorted(set(weight_map.values())):
-        dtypes = _dtypes(d / shard)
-        with safe_open(str(d / shard), framework="pt") as g:
-            for name in g.keys():  # noqa: SIM118 (a safe_open handle, not a dict)
-                rec = records.get(name)
-                if rec is None:
-                    if dtypes[name] == "U8":
-                        problems.append(f"{name}: a U8 tensor {PACK_JSON} does not list")
-                    continue
-                checked += 1
-                problems += [f"{name}: {p}" for p in check_tensor(g.get_tensor(name), rec)]
+        problems = _shard_problems(d, weight_map, records)
+        for shard in sorted(set(weight_map.values())):
+            dtypes = _dtypes(d / shard)
+            with safe_open(str(d / shard), framework="pt") as g:
+                for name in g.keys():  # noqa: SIM118 (a safe_open handle, not a dict)
+                    rec = records.get(name)
+                    if rec is None:
+                        if dtypes[name] == "U8":
+                            problems.append(f"{name}: a U8 tensor {PACK_JSON} does not list")
+                        continue
+                    checked += 1
+                    problems += [f"{name}: {p}" for p in check_tensor(g.get_tensor(name), rec)]
+    except (OSError, TypeError, ValueError, SafetensorError) as e:
+        problems.append(str(e))
     return problems, checked
 
 
