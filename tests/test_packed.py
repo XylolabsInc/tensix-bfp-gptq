@@ -378,6 +378,20 @@ def test_non_object_manifest_reports_error(tmp_path):
     assert checked == 0 and "object" in problems[0]
 
 
+def test_non_object_tensor_record_reports_error(tmp_path):
+    src, dst = tmp_path / "src", tmp_path / "packed"
+    src.mkdir()
+    export_dir(src)
+    packed.pack(src, dst)
+    manifest = json.loads((dst / packed.PACK_JSON).read_text())
+    manifest["tensors"]["lm_head.weight"] = []
+    (dst / packed.PACK_JSON).write_text(json.dumps(manifest))
+    problems, checked = packed.verify(dst)
+    assert checked == 0 and len(problems) == 1 and "'lm_head.weight'" in problems[0]
+    with pytest.raises(TypeError, match="lm_head.weight"):
+        packed.load_bf16(dst)
+
+
 @pytest.mark.parametrize("wrong_shard", [False, True])
 def test_missing_indexed_bf16_is_rejected(tmp_path, wrong_shard):
     src, dst = tmp_path / "src", tmp_path / "packed"

@@ -361,6 +361,9 @@ def read_manifest(model_dir):
         raise ValueError(f"{PACK_JSON}: tile {m.get('tile')!r}, face {m.get('face')!r}")
     if not isinstance(m.get("tensors"), dict):
         raise TypeError(f"{PACK_JSON}: tensors is not an object")
+    for name, rec in m["tensors"].items():
+        if not isinstance(rec, dict):
+            raise TypeError(f"{PACK_JSON}: the record of tensor {name!r} is not an object")
     return m
 
 
