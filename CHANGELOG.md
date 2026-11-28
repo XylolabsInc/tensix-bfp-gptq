@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `tools/pack_tensix.py --cache-dir` names each TT-NN cache file by the tensor, its format,
+  dtype, shape and bytes as packed. It used the tensor name alone, and `ttnn.as_tensor` loads an
+  existing file, so a rerun with the same cache directory after a weight or the `qkv_row_order`
+  changed packed and checked the old data. Cache files written by 0.4.0 are not reused.
+- `pack` and `unpack` of `tensix_bfp/packed.py` give the output directory the destination's
+  mode. It was left 0700, the mode of the staging directory, so other users could not read it.
+- `bfp()` returns +0.0 for a value that rounds to zero, as tt-metal's packer stores it; a
+  negative input gave -0.0. Values do not change, nor do the tile bytes of a packed checkpoint;
+  a bf16 export can differ from one made with 0.4.0 in the sign bit of such zeros.
+- `tensix_bfp/packed.py` refuses a `tensix_pack.json` tensor record that is not an object with
+  a `TypeError` naming the tensor, which `verify` reports as a problem. `verify` raised an
+  `AttributeError`.
+
 ## 0.4.0 (2026-11-28)
 
 ### Changed
