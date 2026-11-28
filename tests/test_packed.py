@@ -331,6 +331,42 @@ def test_indexed_packed_tensor_missing_from_shard(tmp_path):
     assert checked == 1 and any("absent" in p for p in problems)
     with pytest.raises(ValueError, match="absent"):
         list(packed.iter_bf16(d))
+    with pytest.raises(ValueError, match="absent"):
+        packed.unpack(d, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_indexed_shard_ownership(tmp_path, duplicate):
+    data, rec = packed.pack_tensor(torch.ones(32, 32, dtype=torch.bfloat16), "bfp4")
+    other, _ = packed.pack_tensor(torch.full((32, 32), 0.5, dtype=torch.bfloat16), "bfp4")
+    save_file({"x": data} if duplicate else {"a": torch.ones(1)}, str(tmp_path / "a.safetensors"))
+    save_file({"x": other, "b": torch.ones(1)}, str(tmp_path / "b.safetensors"))
+    (tmp_path / packed.INDEX).write_text(
+        json.dumps({"weight_map": {"x": "a.safetensors", "b": "b.safetensors"}})
+    )
+    (tmp_path / packed.PACK_JSON).write_text(
+        json.dumps(
+            {
+                "format": packed.FORMAT,
+                "format_version": 1,
+                "tile": [32, 32],
+                "face": [16, 16],
+                "tensors": {"x": rec},
+            }
+        )
+    )
+    message = (
+        "duplicate tensor in a.safetensors and b.safetensors"
+        if duplicate
+        else "missing from its indexed shard"
+    )
+    assert any(message in p for p in packed.verify(tmp_path)[0])
+    with pytest.raises(ValueError, match=message):
+        packed.load_bf16(tmp_path)
+    with pytest.raises(ValueError, match=message):
+        packed.unpack(tmp_path, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
 
 
 def test_non_object_manifest_reports_error(tmp_path):

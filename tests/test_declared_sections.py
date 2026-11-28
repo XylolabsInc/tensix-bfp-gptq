@@ -250,3 +250,8 @@ def test_pack_rejects_quantized_tensor_missing_from_indexed_shard(tmp_path):
     (src / "quant4.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="missing.weight"):
         packed.pack(src, tmp_path / "out")
+    tensors = load_file(str(src / "weights.safetensors"))
+    tensors["missing.weight"] = ones(32, 32)
+    save_file(tensors, str(src / "weights.safetensors"))
+    records, _ = packed.pack(src, tmp_path / "out")
+    assert "missing.weight" in records

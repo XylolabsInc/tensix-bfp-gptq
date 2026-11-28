@@ -369,6 +369,31 @@ def _dtypes(path):
     return {k: v["dtype"] for k, v in header.items() if k != "__metadata__"}
 
 
+def _shard_problems(d, weight_map, required):
+    """Check physical ownership before reading or writing tensor contents."""
+    owners, seen, problems = {}, set(), []
+    for shard in sorted(set(weight_map.values())):
+        with safe_open(str(d / shard), framework="pt") as g:
+            for name in g.keys():  # noqa: SIM118
+                if name in owners:
+                    problems.append(f"{name}: duplicate tensor in {owners[name]} and {shard}")
+                else:
+                    owners[name] = shard
+                if weight_map.get(name) == shard:
+                    seen.add(name)
+    for name in sorted(set(required) - set(weight_map)):
+        problems.append(f"{name}: listed but in no shard")
+    for name in sorted(set(required) & set(weight_map) - seen):
+        problems.append(f"{name}: missing from its indexed shard")
+    return problems
+
+
+def _check_shards(d, weight_map, required):
+    problems = _shard_problems(d, weight_map, required)
+    if problems:
+        raise ValueError("; ".join(problems))
+
+
 def _shard(d, shard, records, check):
     """(name, tensor) of one shard, packed tensors decoded."""
     with safe_open(str(d / shard), framework="pt") as g:
@@ -389,20 +414,9 @@ def iter_bf16(model_dir, check=True):
     d = Path(model_dir)
     records = read_manifest(d)["tensors"]
     weight_map = shards(d)
-    missing = sorted(set(records) - set(weight_map))
-    if missing:
-        raise ValueError(f"{PACK_JSON} lists tensors no shard holds: {missing[:5]}")
-    seen = set()
+    _check_shards(d, weight_map, records)
     for shard in sorted(set(weight_map.values())):
-        for name, tensor in _shard(d, shard, records, check):
-            if weight_map.get(name) == shard:
-                seen.add(name)
-            yield name, tensor
-    missing = sorted(set(records) - seen)
-    if missing:
-        raise ValueError(
-            f"{PACK_JSON} lists tensors missing from their indexed shards: {missing[:5]}"
-        )
+        yield from _shard(d, shard, records, check)
 
 
 def load_bf16(model_dir, check=True):
@@ -422,11 +436,8 @@ def verify(model_dir):
         weight_map = shards(d)
     except (OSError, ValueError) as e:
         return [str(e)], 0
-    problems = [
-        f"{n}: listed in {PACK_JSON}, in no shard" for n in sorted(set(records) - set(weight_map))
-    ]
+    problems = _shard_problems(d, weight_map, records)
     checked = 0
-    seen = set()
     for shard in sorted(set(weight_map.values())):
         dtypes = _dtypes(d / shard)
         with safe_open(str(d / shard), framework="pt") as g:
@@ -436,12 +447,8 @@ def verify(model_dir):
                     if dtypes[name] == "U8":
                         problems.append(f"{name}: a U8 tensor {PACK_JSON} does not list")
                     continue
-                if weight_map.get(name) == shard:
-                    seen.add(name)
                 checked += 1
                 problems += [f"{name}: {p}" for p in check_tensor(g.get_tensor(name), rec)]
-    for name in sorted(set(records) & set(weight_map) - seen):
-        problems.append(f"{name}: missing from its indexed shard")
     return problems, checked
 
 
@@ -477,6 +484,7 @@ def unpack(model_dir, out_dir, check=True):
     d = Path(model_dir)
     records = read_manifest(d)["tensors"]
     weight_map = shards(d)
+    _check_shards(d, weight_map, records)
     o = _out_dir(out_dir, sorted(set(weight_map.values())))
     for shard in sorted(set(weight_map.values())):
         with safe_open(str(d / shard), framework="pt") as g:
@@ -630,6 +638,7 @@ def pack(src_dir, out_dir, at_pack=()):
         _fmt_bits(fmt)
         rules.append((re.compile(rx), fmt))
     files = sorted(set(weight_map.values()))
+    _check_shards(s, weight_map, fmts)
     n = len(files)
     renamed = {
         f: "model.safetensors" if n == 1 else f"model-{i:05d}-of-{n:05d}.safetensors"
@@ -637,14 +646,11 @@ def pack(src_dir, out_dir, at_pack=()):
     }
     o = _out_dir(out_dir, list(renamed.values()))
     records, new_map, kept = {}, {}, []
-    seen = set()
     for f in files:
         out = {}
         with safe_open(str(s / f), framework="pt") as g:
             for name in g.keys():  # noqa: SIM118 (a safe_open handle, not a dict)
                 t = g.get_tensor(name)
-                if weight_map.get(name) == f:
-                    seen.add(name)
                 fmt, at = fmts.get(name), False
                 if fmt is None:
                     fmt = next((rf for rx, rf in rules if rx.search(name)), None)
@@ -660,11 +666,6 @@ def pack(src_dir, out_dir, at_pack=()):
                 out[name] = t
                 new_map[name] = renamed[f]
         save_file(out, str(o / renamed[f]), metadata={"format": "pt"})
-    missing = sorted(set(fmts) - seen)
-    if missing:
-        raise ValueError(
-            f"quant4.json lists tensors missing from their indexed shards: {missing[:5]}"
-        )
     if n > 1:
         meta = {}
         if (s / INDEX).exists():
