@@ -9,4 +9,4 @@ answers (the answer check), ministral3 (Ministral 3's text-only copy), packed (p
 TT-NN tile bytes).
 """
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
