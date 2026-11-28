@@ -579,11 +579,13 @@ class Model:
 
         n, names, ev, first = e["tokens"], [], [], []
         pre = self.chat_prefix() if "chat" in e["formats"] else []
+        if "chat" in e["formats"] and n <= len(pre):
+            raise ValueError("[eval] tokens must exceed the chat prefix length")
         for t in e["texts"]:
             for fmt in e["formats"]:
                 for k in range(e["chunks"]):
                     if fmt == "chat":
-                        ev.append([*pre, *piece(t, n - len(pre), k * n, [])])
+                        ev.append([*pre, *piece(t, n - len(pre), k * (n - len(pre)), [])])
                         first.append(len(pre))
                     elif fmt == "raw":
                         ev.append([*bos_ids, *piece(t, n, k * n, bos_ids)[len(bos_ids) :]])
