@@ -42,9 +42,12 @@ import argparse
 import ctypes
 import hashlib
 import json
+import os
 import re
 import shutil
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import torch
@@ -478,6 +481,15 @@ def _out_dir(out_dir, names=()):
     return o
 
 
+@contextmanager
+def _staged_output(out_dir, names):
+    """Stage output beside the destination and publish it only after all writes succeed."""
+    destination = _out_dir(out_dir, names)
+    with tempfile.TemporaryDirectory(prefix=f".{destination.name}-", dir=destination.parent) as tmp:
+        yield Path(tmp)
+        os.replace(tmp, destination)
+
+
 def unpack(model_dir, out_dir, check=True):
     """Write the bf16 checkpoint of a packed one to out_dir: the same shards and tensor names with
     the packed tensors decoded, and the other files copied (tensix_pack.json left out)."""
@@ -485,14 +497,14 @@ def unpack(model_dir, out_dir, check=True):
     records = read_manifest(d)["tensors"]
     weight_map = shards(d)
     _check_shards(d, weight_map, records)
-    o = _out_dir(out_dir, sorted(set(weight_map.values())))
-    for shard in sorted(set(weight_map.values())):
-        with safe_open(str(d / shard), framework="pt") as g:
-            meta = dict(g.metadata() or {})
-        meta.setdefault("format", "pt")
-        save_file(dict(_shard(d, shard, records, check)), str(o / shard), metadata=meta)
-    _copy_files(d, o, {PACK_JSON})
-    return o
+    with _staged_output(out_dir, sorted(set(weight_map.values()))) as o:
+        for shard in sorted(set(weight_map.values())):
+            with safe_open(str(d / shard), framework="pt") as g:
+                meta = dict(g.metadata() or {})
+            meta.setdefault("format", "pt")
+            save_file(dict(_shard(d, shard, records, check)), str(o / shard), metadata=meta)
+        _copy_files(d, o, {PACK_JSON})
+    return Path(out_dir)
 
 
 # --- declared tensors -----------------------------------------------------------------------------
@@ -644,42 +656,42 @@ def pack(src_dir, out_dir, at_pack=()):
         f: "model.safetensors" if n == 1 else f"model-{i:05d}-of-{n:05d}.safetensors"
         for i, f in enumerate(files, 1)
     }
-    o = _out_dir(out_dir, list(renamed.values()))
-    records, new_map, kept = {}, {}, []
-    for f in files:
-        out = {}
-        with safe_open(str(s / f), framework="pt") as g:
-            for name in g.keys():  # noqa: SIM118 (a safe_open handle, not a dict)
-                t = g.get_tensor(name)
-                fmt, at = fmts.get(name), False
-                if fmt is None:
-                    fmt = next((rf for rx, rf in rules if rx.search(name)), None)
-                    at = fmt is not None
-                if fmt is not None:
-                    aligned = (
-                        t.dim() in (2, 3) and t.shape[-1] % TILE == 0 and t.shape[-2] % TILE == 0
-                    )
-                    if aligned and t.is_floating_point():
-                        t, records[name] = pack_tensor(t, fmt, "transposed", at_pack=at)
-                    else:
-                        kept.append(name)
-                out[name] = t
-                new_map[name] = renamed[f]
-        save_file(out, str(o / renamed[f]), metadata={"format": "pt"})
-    if n > 1:
-        meta = {}
-        if (s / INDEX).exists():
-            meta = json.loads((s / INDEX).read_text()).get("metadata", {})
-        (o / INDEX).write_text(json.dumps({"metadata": meta, "weight_map": new_map}, indent=1))
-    manifest_out = {
-        "format": FORMAT,
-        "format_version": FORMAT_VERSION,
-        "tile": [TILE, TILE],
-        "face": [FACE, FACE],
-        "tensors": records,
-    }
-    (o / PACK_JSON).write_text(json.dumps(manifest_out, indent=1))
-    _copy_files(s, o, {INDEX, PACK_JSON})
+    with _staged_output(out_dir, list(renamed.values())) as o:
+        records, new_map, kept = {}, {}, []
+        for f in files:
+            out = {}
+            with safe_open(str(s / f), framework="pt") as g:
+                for name in g.keys():  # noqa: SIM118 (a safe_open handle, not a dict)
+                    t = g.get_tensor(name)
+                    fmt, at = fmts.get(name), False
+                    if fmt is None:
+                        fmt = next((rf for rx, rf in rules if rx.search(name)), None)
+                        at = fmt is not None
+                    if fmt is not None:
+                        aligned = (
+                            t.dim() in (2, 3) and t.shape[-1] % TILE == 0 and t.shape[-2] % TILE == 0
+                        )
+                        if aligned and t.is_floating_point():
+                            t, records[name] = pack_tensor(t, fmt, "transposed", at_pack=at)
+                        else:
+                            kept.append(name)
+                    out[name] = t
+                    new_map[name] = renamed[f]
+            save_file(out, str(o / renamed[f]), metadata={"format": "pt"})
+        if n > 1:
+            meta = {}
+            if (s / INDEX).exists():
+                meta = json.loads((s / INDEX).read_text()).get("metadata", {})
+            (o / INDEX).write_text(json.dumps({"metadata": meta, "weight_map": new_map}, indent=1))
+        manifest_out = {
+            "format": FORMAT,
+            "format_version": FORMAT_VERSION,
+            "tile": [TILE, TILE],
+            "face": [FACE, FACE],
+            "tensors": records,
+        }
+        (o / PACK_JSON).write_text(json.dumps(manifest_out, indent=1))
+        _copy_files(s, o, {INDEX, PACK_JSON})
     return records, kept
 
 

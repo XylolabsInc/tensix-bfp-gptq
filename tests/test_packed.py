@@ -420,3 +420,37 @@ def test_missing_indexed_bf16_is_rejected(tmp_path, wrong_shard):
         packed.load_bf16(dst)
     with pytest.raises(ValueError, match=name):
         packed.unpack(dst, tmp_path / "unpacked")
+
+
+@pytest.mark.parametrize("operation", ["pack", "unpack"])
+def test_retry_after_late_shard_failure(tmp_path, operation):
+    src, dst = tmp_path / "src", tmp_path / "packed"
+    src.mkdir()
+    export_dir(src)
+    if operation == "pack":
+        shard = src / "b.safetensors"
+        tensors = load_file(str(shard))
+        original = tensors["lm_head.weight"].clone()
+        tensors["lm_head.weight"] = torch.full_like(original, 1.1)
+        save_file(tensors, str(shard))
+        with pytest.raises(ValueError):
+            packed.pack(src, dst)
+        assert not list(dst.iterdir())
+        tensors["lm_head.weight"] = original
+        save_file(tensors, str(shard))
+        packed.pack(src, dst)
+    else:
+        packed.pack(src, dst)
+        shard = dst / "model-00002-of-00002.safetensors"
+        tensors = load_file(str(shard))
+        original = tensors["lm_head.weight"].clone()
+        tensors["lm_head.weight"][0, 64] ^= 1
+        save_file(tensors, str(shard))
+        out = tmp_path / "unpacked"
+        with pytest.raises(ValueError, match="bf16_sha256"):
+            packed.unpack(dst, out)
+        assert not list(out.iterdir())
+        tensors["lm_head.weight"] = original
+        save_file(tensors, str(shard))
+        packed.unpack(dst, out)
+    assert not list(tmp_path.glob(".*-*/"))
