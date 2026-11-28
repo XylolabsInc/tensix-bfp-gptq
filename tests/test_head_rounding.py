@@ -155,3 +155,40 @@ def test_head_matches_the_older_behavior(setup, tmp_path, monkeypatch, fmt, gptq
         assert spy.hessians == []
         old = quantize(w, fmt)
     assert torch.equal(head.float(), old.bfloat16().float())
+
+
+@pytest.mark.parametrize("manifest_format", [1, 2])
+def test_prefixed_head_uses_selected_name(tmp_path, manifest_format):
+    from types import SimpleNamespace
+
+    from safetensors.torch import save_file
+
+    src = tmp_path / "src"
+    src.mkdir()
+    out = tmp_path / "out"
+    out.mkdir()
+    name = "wrapper.lm_head.weight"
+    original = torch.ones(32, 32, dtype=torch.bfloat16)
+    save_file(
+        {name: original, "model.norm.weight": torch.ones(32)}, str(src / "weights.safetensors")
+    )
+    md = SimpleNamespace(
+        head_name=name,
+        fam=SimpleNamespace(prefix="model.", final_norm="norm", embed="embed_tokens"),
+        ckpt=SimpleNamespace(
+            dir=src, index={name: "weights.safetensors", "model.norm.weight": "weights.safetensors"}
+        ),
+        untied=lambda: True,
+    )
+    variant = SimpleNamespace(of=lambda group: "bfp4", tag=lambda: "test")
+    manifest = {}
+    rounded = torch.full((32, 32), 0.5)
+    E.save_head(md, variant, out, torch.ones(32), rounded, manifest, manifest_format)
+    with safe_open(str(out / "head.safetensors"), framework="pt") as f:
+        assert torch.equal(f.get_tensor(name), rounded)
+        if manifest_format == 1:
+            assert torch.equal(f.get_tensor("lm_head.weight"), rounded)
+    index = json.loads((out / "model.safetensors.index.json").read_text())["weight_map"]
+    assert index[name] == "head.safetensors"
+    if manifest_format == 2:
+        assert manifest["lm_head_tensor"] == name

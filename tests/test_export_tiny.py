@@ -207,3 +207,70 @@ def test_variant_parse():
     )
     with pytest.raises(ValueError):
         E.parse("all=int4", fam, 0.1)
+
+
+def test_chat_chunks_cover_text_without_gaps():
+    md = object.__new__(E.Model)
+    md.cfg = {"eval": {"texts": ["text"], "formats": ["chat"], "tokens": 6, "chunks": 3}}
+    md.bos_ids = lambda: []
+    md.chat_prefix = lambda: [90, 91]
+    md._text_ids = lambda: lambda text, prefix: list(range(20))
+    _, seqs, first = md.eval_tokens()
+    assert first == [2, 2, 2]
+    assert [t for seq in seqs for t in seq[2:]] == list(range(12))
+    md.cfg["eval"]["tokens"] = 2
+    with pytest.raises(ValueError, match="prefix"):
+        md.eval_tokens()
+
+
+@pytest.mark.parametrize("fmt", ["bfp4", "bfp8"])
+def test_tied_head_export_matches_loaded_embedding(setup, tmp_path, fmt):
+    from safetensors.torch import load_file
+    from transformers import Qwen3ForCausalLM
+
+    base, data, models = setup
+    out = tmp_path / "out"
+    run(base, data, models, "qwen3", f"all=bf16,lm_head={fmt}", out)
+    man = json.loads((out / "quant4.json").read_text())
+    tensors = load_file(str(out / "head.safetensors"))
+    name = man["lm_head_tensor"]
+    assert name == "model.embed_tokens.weight"
+    assert torch.equal(tensors[name], tensors["lm_head.weight"])
+    assert on_grid(tensors[name].float(), fmt)
+    model = Qwen3ForCausalLM.from_pretrained(out)
+    assert torch.equal(model.lm_head.weight, tensors[name])
+    assert torch.equal(model.model.embed_tokens.weight, tensors[name])
+
+
+def test_hessian_normalization_uses_model_epsilon(setup, tmp_path, monkeypatch):
+    import shutil
+
+    base, data, models = setup
+    model_dir = tmp_path / "llama"
+    shutil.copytree(models["llama"], model_dir)
+    config_path = model_dir / "config.json"
+    cfg = json.loads(config_path.read_text())
+    cfg["rms_norm_eps"] = 0.002
+    config_path.write_text(json.dumps(cfg))
+    seen = []
+    original = E.plain_norm
+
+    def record(x, eps=1e-6):
+        seen.append(eps)
+        return original(x, eps)
+
+    monkeypatch.setattr(E, "plain_norm", record)
+    run(
+        base,
+        data,
+        {"llama": model_dir},
+        "llama",
+        "all=bf16,lm_head=bfp8,gptq",
+        tmp_path / "out",
+        "--bfp8",
+        "gptq",
+    )
+    assert seen and set(seen) == {0.002}
+    x = torch.tensor([[0.0001, 0.0002]])
+    expected = x * torch.rsqrt(x.square().mean(-1, keepdim=True) + 0.002)
+    assert torch.equal(original(x, 0.002), expected)

@@ -414,3 +414,15 @@ def test_extra_named_twice_is_counted_once(tmp_path):
     result = verify(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "2 matrices checked, 0 off the grid" in result.stdout
+
+
+@pytest.mark.parametrize("bits", [3, 7])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_grid_checker_flushes_subnormals(bits, mixed):
+    values = torch.zeros(1, 16)
+    values[0, 0] = 2.0**-132
+    if mixed:
+        values[0, 1] = 2.0**-126
+    result = verify_grid.on_grid(values, bits)
+    assert result[0, 0] == 0
+    assert torch.equal(result[0, 1:], values[0, 1:])

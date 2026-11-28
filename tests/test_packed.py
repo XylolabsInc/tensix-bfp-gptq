@@ -304,3 +304,36 @@ def test_runs_standalone(tmp_path):
     assert run("unpack", dst, back).returncode == 0
     assert (back / "model-00002-of-00002.safetensors").exists()
     assert run("verify", src).returncode == 1  # no tensix_pack.json
+
+
+def test_indexed_packed_tensor_missing_from_shard(tmp_path):
+    d = tmp_path / "packed"
+    d.mkdir()
+    data, rec = packed.pack_tensor(torch.ones(32, 32, dtype=torch.bfloat16), "bfp4")
+    save_file({"present": data}, str(d / "weights.safetensors"))
+    (d / packed.INDEX).write_text(
+        json.dumps(
+            {"weight_map": {"present": "weights.safetensors", "absent": "weights.safetensors"}}
+        )
+    )
+    (d / packed.PACK_JSON).write_text(
+        json.dumps(
+            {
+                "format": packed.FORMAT,
+                "format_version": packed.FORMAT_VERSION,
+                "tile": [32, 32],
+                "face": [16, 16],
+                "tensors": {"present": rec, "absent": rec},
+            }
+        )
+    )
+    problems, checked = packed.verify(d)
+    assert checked == 1 and any("absent" in p for p in problems)
+    with pytest.raises(ValueError, match="absent"):
+        list(packed.iter_bf16(d))
+
+
+def test_non_object_manifest_reports_error(tmp_path):
+    (tmp_path / packed.PACK_JSON).write_text("[]")
+    problems, checked = packed.verify(tmp_path)
+    assert checked == 0 and "object" in problems[0]

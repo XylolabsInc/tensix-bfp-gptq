@@ -158,7 +158,7 @@ def test_conflict_is_found_whatever_the_order_and_layer_selection(tmp_path):
     src = checkpoint(
         tmp_path / "src",
         {
-            "lm_head": "bf16",
+            "lm_head": None,
             "global_linears": {HEAD: {"format": "bfp4"}},
             "extra": {HEAD: {"format": "bfp8"}},
             "layers": {"0": {"self_attn.q_proj": {"format": "bfp4"}}},
@@ -231,3 +231,22 @@ def test_too_large_fused_projection_raises_without_asserts():
         r = subprocess.run([sys.executable, *flags, "-c", code], capture_output=True, text=True)
         assert "RAISED" in r.stdout, (flags, r.stdout, r.stderr)
         assert "has 40 rows, expected" in r.stdout and "= 32" in r.stdout
+
+
+@pytest.mark.parametrize("head,extra", [("bf16", "bfp4"), ("bfp4", "bf16")])
+def test_bf16_conflicts_with_block_format(head, extra):
+    manifest = {"lm_head": head, "extra": {HEAD: {"format": extra}}}
+    with pytest.raises(ValueError, match="declared as"):
+        packed.declared_tensors(manifest, {HEAD: "weights.safetensors"})
+
+
+def test_pack_rejects_quantized_tensor_missing_from_indexed_shard(tmp_path):
+    src = checkpoint(tmp_path / "src")
+    index = json.loads((src / INDEX).read_text())
+    index["weight_map"]["missing.weight"] = "weights.safetensors"
+    (src / INDEX).write_text(json.dumps(index))
+    manifest = json.loads((src / "quant4.json").read_text())
+    manifest["extra"]["missing.weight"] = {"format": "bfp4"}
+    (src / "quant4.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="missing.weight"):
+        packed.pack(src, tmp_path / "out")

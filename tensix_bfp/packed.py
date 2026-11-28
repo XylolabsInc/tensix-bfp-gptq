@@ -400,7 +400,9 @@ def iter_bf16(model_dir, check=True):
             yield name, tensor
     missing = sorted(set(records) - seen)
     if missing:
-        raise ValueError(f"{PACK_JSON} lists tensors missing from their indexed shards: {missing[:5]}")
+        raise ValueError(
+            f"{PACK_JSON} lists tensors missing from their indexed shards: {missing[:5]}"
+        )
 
 
 def load_bf16(model_dir, check=True):
@@ -660,7 +662,9 @@ def pack(src_dir, out_dir, at_pack=()):
         save_file(out, str(o / renamed[f]), metadata={"format": "pt"})
     missing = sorted(set(fmts) - seen)
     if missing:
-        raise ValueError(f"quant4.json lists tensors missing from their indexed shards: {missing[:5]}")
+        raise ValueError(
+            f"quant4.json lists tensors missing from their indexed shards: {missing[:5]}"
+        )
     if n > 1:
         meta = {}
         if (s / INDEX).exists():
