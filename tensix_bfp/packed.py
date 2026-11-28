@@ -345,6 +345,8 @@ def shards(model_dir):
 def read_manifest(model_dir):
     """tensix_pack.json of a packed checkpoint, checked to be a format this file reads."""
     m = json.loads((Path(model_dir) / PACK_JSON).read_text())
+    if not isinstance(m, dict):
+        raise ValueError(f"{PACK_JSON}: expected an object")
     if m.get("format") != FORMAT:
         raise ValueError(f"{PACK_JSON}: format {m.get('format')!r}, not {FORMAT!r}")
     if m.get("format_version") != FORMAT_VERSION:
