@@ -898,7 +898,16 @@ def save_head(md, v, d, nw, w, manifest, manifest_format):
     from safetensors import safe_open
     from safetensors.torch import save_file
 
-    t = matrix("lm_head", w, v.of("lm_head"))
+    head_name = md.head_name
+    t = {head_name: matrix(head_name.removesuffix(".weight"), w, v.of("lm_head"))[head_name]}
+    if not md.untied():
+        embed_name = f"{md.fam.prefix}{md.fam.embed}.weight"
+        if v.of("lm_head") != "bf16":
+            t[embed_name] = t[head_name].clone()
+        if head_name == embed_name:
+            t["lm_head.weight"] = t[head_name].clone()
+    if manifest_format == 1 and "lm_head.weight" not in t:
+        t["lm_head.weight"] = t[head_name].clone()
     t[f"{md.fam.prefix}{md.fam.final_norm}.weight"] = nw.to(torch.bfloat16)
     write_tensors(d / "head.safetensors", t)
     index = {}

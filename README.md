@@ -127,6 +127,7 @@ The other options:
 
 `--method` and `--bfp8` apply to the LM head as they do to every layer projection: a bfp4 head is
 rounded like a bfp4 projection, a bfp8 head like a bfp8 projection, and a bf16 head is not rounded.
+For a tied head, quantizing the head also quantizes the shared embedding; both use the same values.
 
 The output loads with transformers like the original:
 
