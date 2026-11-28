@@ -57,6 +57,7 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `tensix_bfp/ministral3.py` | ours |  | 39 | 3 | Ministral 3's release to a text-only checkpoint |
 | `tensix_bfp/packed.py` | ours |  | 359 | 8 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`); holds the one list of declared tensors (`declared_tensors`) that both check tools use, so it still runs alone |
 | `tests/test_bfp.py` | ours |  | 115 | 4 | adds directed edge vectors frozen from TT-NN 0.81.1 (ties, clamp, subnormal flush, zeros, signs) |
+| `tests/test_cache_paths.py` | ours |  | — | — | cache confinement and directory creation; not included in the comparison below |
 | `tests/test_check_tools.py` | ours |  | 201 | 15 | adds the row-order, global-linear and extra-matrix tests |
 | `tests/test_data.py` | ours |  | 20 | 1 |  |
 | `tests/test_declared_sections.py` | ours |  | 127 | 4 | every declared section is packed and checked, conflicting formats and qkv_row_order exports are refused |
