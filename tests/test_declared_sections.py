@@ -255,3 +255,30 @@ def test_pack_rejects_quantized_tensor_missing_from_indexed_shard(tmp_path):
     save_file(tensors, str(src / "weights.safetensors"))
     records, _ = packed.pack(src, tmp_path / "out")
     assert "missing.weight" in records
+
+
+@pytest.mark.parametrize("block", ["bfp4", "bfp8"])
+@pytest.mark.parametrize("section", ["layer", "fused", "global", "extra", "unselected"])
+def test_bf16_conflicts_across_declaration_sections(block, section):
+    name = "model.layers.0.self_attn.q_k_v_proj.weight" if section == "fused" else LAYER
+    projection = name.split("layers.0.")[1].removesuffix(".weight")
+    manifest = {"layers": {"0": {projection: {"format": "bf16"}}}}
+    if section in ("layer", "fused", "unselected"):
+        manifest["extra"] = {name: {"format": block}}
+    else:
+        manifest["layers"] = {"0": {projection: {"format": block}}}
+        manifest["global_linears" if section == "global" else "extra"] = {name: {"format": "bf16"}}
+    with pytest.raises(ValueError, match="declared as"):
+        packed.declared_tensors(
+            manifest, {name: "weights.safetensors"}, {"1"} if section == "unselected" else None
+        )
+
+
+def test_absent_bf16_declarations_are_skipped():
+    manifest = {
+        "layers": {"0": {"self_attn.absent": {"format": "bf16"}}},
+        "lm_head": "bf16",
+        "global_linears": {"absent_global": {"format": "bf16"}},
+        "extra": {"absent_extra": {"format": "bf16"}},
+    }
+    assert packed.declared_tensors(manifest, {}) == []
