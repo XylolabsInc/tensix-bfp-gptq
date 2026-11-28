@@ -25,9 +25,9 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 |---|---|---|---|---|---|
 | `.gitignore` | ours |  | 0 | 0 | ignore patterns |
 | `AGENTS.md` | ours |  | 40 | 0 | instructions for coding agents |
-| `CHANGELOG.md` | ours |  | 40 | 0 | documentation |
+| `CHANGELOG.md` | ours |  | 58 | 0 | documentation |
 | `CLAUDE.md` | ours |  | 0 | 0 | symbolic link to AGENTS.md |
-| `README.md` | ours |  | 144 | 0 | documentation |
+| `README.md` | ours |  | 145 | 0 | documentation |
 | `assets/xylolabs-lockup-dark.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `assets/xylolabs-lockup.svg` | ours |  | 1 | 0 | Xylolabs' logo, hand-written SVG; no generator script |
 | `configs/arete-27b.toml` | ours |  | 2 | 0 | the export configuration of a published checkpoint |
@@ -51,31 +51,31 @@ counted, duplicates included; "Lines in tt-metal" counts those also found in the
 | `tensix_bfp/answers.py` | ours |  | 377 | 10 | the answer check (answers.json's items, greedy, against the bf16 model) |
 | `tensix_bfp/bfp.py` | ours |  | 69 | 1 | TT-NN's bfloat8_b and bfloat4_b rounding in torch, written from TT-NN's documented format and checked against stock ttnn's own packing (`tests/test_ttnn_pack.py`) |
 | `tensix_bfp/data.py` | ours |  | 86 | 4 | downloads the calibration and evaluation texts at run time; no text is shipped |
-| `tensix_bfp/export.py` | ours |  | 495 | 13 | the exporter and its model families, through transformers' public API |
+| `tensix_bfp/export.py` | ours |  | 505 | 13 | the exporter and its model families, through transformers' public API |
 | `tensix_bfp/gptq.py` | ours |  | 93 | 1 | GPTQ (Frantar et al., 2022, arXiv:2210.17323), implemented from the paper |
 | `tensix_bfp/kl.py` | ours |  | 58 | 2 | mean KL, top-1 and top-5 against the bf16 model; its sequences are cut as llama.cpp's perplexity tool cuts them (the behavior, not its code) |
 | `tensix_bfp/ministral3.py` | ours |  | 39 | 3 | Ministral 3's release to a text-only checkpoint |
-| `tensix_bfp/packed.py` | ours |  | 359 | 8 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`); holds the one list of declared tensors (`declared_tensors`) that both check tools use, so it still runs alone |
-| `tests/test_bfp.py` | ours |  | 115 | 4 | adds directed edge vectors frozen from TT-NN 0.81.1 (ties, clamp, subnormal flush, zeros, signs) |
-| `tests/test_cache_paths.py` | ours |  | — | — | cache confinement and directory creation; not included in the comparison below |
-| `tests/test_check_tools.py` | ours |  | 201 | 15 | adds the row-order, global-linear and extra-matrix tests |
+| `tensix_bfp/packed.py` | ours |  | 384 | 7 | packed checkpoints in TT-NN's tile byte layout, written to a written spec of our own design, checked against tt-metal v0.81.1's public packer source and stock ttnn (`tests/test_ttnn_pack.py`); holds the one list of declared tensors (`declared_tensors`) that both check tools use, so it still runs alone |
+| `tests/test_bfp.py` | ours |  | 119 | 4 | adds directed edge vectors frozen from TT-NN 0.81.1 (ties, clamp, subnormal flush, zeros, signs), compared by bit pattern so that a zero's sign counts |
+| `tests/test_cache_paths.py` | ours |  | 40 | 7 | cache confinement, directory creation, and a new cache file for a changed weight, with a stand-in for ttnn |
+| `tests/test_check_tools.py` | ours |  | 206 | 15 | adds the row-order, global-linear and extra-matrix tests |
 | `tests/test_data.py` | ours |  | 20 | 1 |  |
-| `tests/test_declared_sections.py` | ours |  | 127 | 4 | every declared section is packed and checked, conflicting formats and qkv_row_order exports are refused |
-| `tests/test_export_tiny.py` | ours |  | 74 | 6 |  |
+| `tests/test_declared_sections.py` | ours |  | 164 | 4 | every declared section is packed and checked, conflicting formats and qkv_row_order exports are refused |
+| `tests/test_export_tiny.py` | ours |  | 121 | 8 |  |
 | `tests/test_gptq.py` | ours |  | 39 | 4 |  |
-| `tests/test_head_rounding.py` | ours |  | 71 | 3 | the LM head goes through the routine its format and the options name, on its grid, and unchanged for --method gptq --bfp8 rtn |
+| `tests/test_head_rounding.py` | ours |  | 114 | 7 | the LM head goes through the routine its format and the options name, on its grid, and unchanged for --method gptq --bfp8 rtn |
 | `tests/test_origins.py` | ours |  | 21 | 4 | every tracked file is listed in ORIGINS.md exactly once |
-| `tests/test_packed.py` | ours |  | 176 | 14 |  |
+| `tests/test_packed.py` | ours |  | 269 | 16 |  |
 | `tests/test_shard_names.py` | ours |  | 141 | 9 | shard names that leave their directory, and cache-style snapshots |
 | `tests/test_ttnn_pack.py` | ours |  | 150 | 14 | bfp.py and packed.py against stock ttnn's packer; the checker on global linears, extra matrices, conflicting formats and a cache-style snapshot |
-| `tools/pack_tensix.py` | ours |  | 58 | 5 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip; applies a declared `qkv_row_order`; checks every declared section through `packed.py`'s `declared_tensors` |
+| `tools/pack_tensix.py` | ours |  | 64 | 5 | packs a checkpoint with `ttnn.as_tensor` and checks the round trip; applies a declared `qkv_row_order`; checks every declared section through `packed.py`'s `declared_tensors`; names each cache file by the matrix it packs |
 | `tools/row_order.py` | ours |  | 46 | 1 | the `spark-llama` row order of a fused q/k/v projection, written to a written spec of our own design from the public Spark-X2.6-4B config and model code; shared by both check tools |
-| `tools/verify_grid.py` | ours |  | 58 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order`; checks every declared section through `packed.py`'s `declared_tensors` |
+| `tools/verify_grid.py` | ours |  | 59 | 4 | checks that every quantized matrix is on its grid; applies a declared `qkv_row_order`; checks every declared section through `packed.py`'s `declared_tensors` |
 
 ## How it was checked
 
-All counts are from a run on 2026-11-25 over the files of this tree (on `d214f19` with this change), against the version
-this repository pins, tt-metal v0.81.1.
+The counts in 1 and 2 are from a run on 2026-11-25 over the files of this tree (on `d214f19` with this change), against
+the version this repository pins, tt-metal v0.81.1. The table's two count columns are from the recount in 4.
 
 1. **Line comparison.** Every line of 30 or more characters (whitespace-normalized), every line counted and duplicates
    included, of each file in the table was looked up in tt-metal v0.81.1 (its source checkout at tag `v0.81.1`,
@@ -103,6 +103,15 @@ this repository pins, tt-metal v0.81.1.
    (`tools/pack_tensix.py`). The `ttnn` 0.81.1 wheel's runtime tree contained 5,489 text files in this run
    (6,665 in the earlier inventory). The tt-metal source and transformers counts differed by 13 and 4 files,
    respectively. The other three counts stayed the same.
+4. **v0.4.1.** The release changes `CHANGELOG.md`, `ORIGINS.md`, `pyproject.toml`, `tensix_bfp/__init__.py`,
+   `tensix_bfp/bfp.py`, `tensix_bfp/packed.py`, `tests/test_bfp.py`, `tests/test_cache_paths.py`,
+   `tests/test_packed.py` and `tools/pack_tensix.py`, all class "ours". On 2026-11-28 both count columns were
+   recounted for every row with the line comparison in 1, against tt-metal's source tree at tag `v0.81.1` (24,522
+   text files) and the `ttnn` 0.81.1 wheel's runtime tree (5,489). The rows of files changed since their last count,
+   by v0.4.0 or by this release, now hold current counts; the other rows came out as before. Of 3,543 lines
+   checked, 145 are found in tt-metal's tree. One line this release adds is among them: the new test in
+   `tests/test_cache_paths.py` writes the index file with the same line as the test before it. The other four
+   trees of 1 and the token comparison of 2 were not run again.
 
 ## Third-party model code and configs
 
