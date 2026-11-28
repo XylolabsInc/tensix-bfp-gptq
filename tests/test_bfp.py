@@ -199,6 +199,11 @@ def block(head):
     return torch.tensor(head + [0.0] * (16 - len(head)), dtype=torch.float32)
 
 
+def bits(t):
+    """float32 bit patterns, so that -0.0 and +0.0 differ (TT-NN stores a zero with sign 0)."""
+    return t.float().view(torch.int32)
+
+
 EDGE_CASES = [(fmt, name, x, y) for fmt, vs in EDGE_VECTORS.items() for name, x, y in vs]
 EDGE_IDS = [f"{fmt}-{name}" for fmt, name, _, _ in EDGE_CASES]
 
@@ -207,8 +212,11 @@ EDGE_IDS = [f"{fmt}-{name}" for fmt, name, _, _ in EDGE_CASES]
 def test_edge_vectors_match_the_frozen_ttnn_values(fmt, name, x, y):
     got = bfp(block(x), BITS[fmt])
     want = block(y)
-    assert torch.equal(got, want), f"{got.tolist()} != {want.tolist()} (TT-NN {TTNN_VERSION})"
-    assert torch.equal(bfp_weight(block(x).reshape(16, 1).repeat(1, 3), BITS[fmt]).T[0], want)
+    assert torch.equal(bits(got), bits(want)), (
+        f"{got.tolist()} != {want.tolist()} (TT-NN {TTNN_VERSION})"
+    )
+    w = bfp_weight(block(x).reshape(16, 1).repeat(1, 3), BITS[fmt])
+    assert torch.equal(bits(w.T[0]), bits(want))
 
 
 def test_edge_vectors_cover_both_formats_and_both_signs():
@@ -246,7 +254,7 @@ def test_edge_vectors_against_the_installed_ttnn(ttnn_module, fmt):
     vs = EDGE_VECTORS[fmt]
     got = ttnn_edge_round(ttnn_module, fmt, torch.stack([block(x) for _, x, _ in vs]))
     for (name, x, y), row in zip(vs, got, strict=True):
-        assert torch.equal(row, block(y)), (
+        assert torch.equal(bits(row), bits(block(y))), (
             f"{fmt} {name}: {row.tolist()} (frozen from {TTNN_VERSION})"
         )
-        assert torch.equal(row, bfp(block(x), BITS[fmt])), f"{fmt} {name}"
+        assert torch.equal(bits(row), bits(bfp(block(x), BITS[fmt]))), f"{fmt} {name}"

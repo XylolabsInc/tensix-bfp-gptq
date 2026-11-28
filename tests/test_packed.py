@@ -38,8 +38,9 @@ def on_grid(shape, mant_bits, seed=0):
     scales from 1e-4 to 10 across its inputs."""
     g = torch.Generator().manual_seed(seed)
     w = torch.randn(shape, generator=g) * torch.logspace(-4, 1, shape[-1])
-    w[..., 0, :] = -1e-12  # tiny negatives in blocks with larger values: stored as -0.0
+    w[..., 0, :] = -1e-12  # tiny negatives in blocks with larger values: flushed to zero
     q = bfp_weight(w.reshape(-1, shape[-1]), mant_bits).reshape(shape).to(torch.bfloat16)
+    q[..., 0, :] = -0.0  # as exports before bfp() returned +0.0 stored those zeros
     assert (bits(q) == -32768).any()  # there are -0.0 values to normalize
     return q
 

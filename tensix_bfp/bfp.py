@@ -23,8 +23,8 @@ EXP_OFFSETS = (-1, 0)
 def bfp(x, mant_bits, block=16):
     """x rounded to the block floating point grid exactly as tt-metal's host packer does it
     (round to nearest even, the mantissa clamped at its maximum, values whose exponent field is
-    0 flushed to 0), returned as float32. Blocks are `block` consecutive values along the last
-    dimension. mant_bits 7: bfloat8_b, 3: bfloat4_b."""
+    0 flushed to 0, a zero with sign 0), returned as float32. Blocks are `block` consecutive
+    values along the last dimension. mant_bits 7: bfloat8_b, 3: bfloat4_b."""
     shape = x.shape
     assert shape[-1] % block == 0, f"bfp: last dimension {shape[-1]} is not a multiple of {block}"
     b = x.float().contiguous().reshape(-1, block).view(torch.int32)
@@ -40,7 +40,7 @@ def bfp(x, mant_bits, block=16):
     m = m.clamp(max=(1 << mant_bits) - 1)
     m = torch.where(exp == 0, torch.zeros_like(m), m)
     v = torch.ldexp(m.float(), (shared - 127 - (mant_bits - 1)).float())
-    return torch.where(b < 0, -v, v).reshape(shape)
+    return torch.where((b < 0) & (m != 0), -v, v).reshape(shape)
 
 
 def bfp_forced(x, e, mant_bits):
