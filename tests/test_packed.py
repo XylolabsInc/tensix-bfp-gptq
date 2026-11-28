@@ -4,7 +4,9 @@
 pack, verify and unpack commands (torch and safetensors only)."""
 
 import json
+import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -477,3 +479,22 @@ def test_verify_reports_unreadable_indexed_shard(tmp_path, corrupt):
     )
     assert result.returncode == 1
     assert "BAD:" in result.stdout and "Traceback" not in result.stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits")
+def test_output_keeps_the_destination_mode(tmp_path):
+    src, dst, back, new = (tmp_path / n for n in ("src", "packed", "unpacked", "new"))
+    src.mkdir()
+    export_dir(src)
+    dst.mkdir()
+    dst.chmod(0o755)
+    packed.pack(src, dst)
+    assert stat.S_IMODE(dst.stat().st_mode) == 0o755
+    back.mkdir()
+    back.chmod(0o750)
+    packed.unpack(dst, back)
+    assert stat.S_IMODE(back.stat().st_mode) == 0o750
+    ref = tmp_path / "ref"
+    ref.mkdir()  # the mode a new directory gets under this umask
+    packed.unpack(dst, new)
+    assert stat.S_IMODE(new.stat().st_mode) == stat.S_IMODE(ref.stat().st_mode)

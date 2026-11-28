@@ -480,10 +480,12 @@ def _out_dir(out_dir, names=()):
 
 @contextmanager
 def _staged_output(out_dir, names):
-    """Stage output beside the destination and publish it only after all writes succeed."""
+    """Stage output beside the destination and publish it only after all writes succeed, with the
+    destination's mode (the staging directory is created 0700)."""
     destination = _out_dir(out_dir, names)
     with tempfile.TemporaryDirectory(prefix=f".{destination.name}-", dir=destination.parent) as tmp:
         yield Path(tmp)
+        os.chmod(tmp, destination.stat().st_mode & 0o7777)
         os.replace(tmp, destination)
 
 
