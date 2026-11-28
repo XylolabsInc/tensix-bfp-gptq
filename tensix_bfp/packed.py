@@ -666,7 +666,9 @@ def pack(src_dir, out_dir, at_pack=()):
                         at = fmt is not None
                     if fmt is not None:
                         aligned = (
-                            t.dim() in (2, 3) and t.shape[-1] % TILE == 0 and t.shape[-2] % TILE == 0
+                            t.dim() in (2, 3)
+                            and t.shape[-1] % TILE == 0
+                            and t.shape[-2] % TILE == 0
                         )
                         if aligned and t.is_floating_point():
                             t, records[name] = pack_tensor(t, fmt, "transposed", at_pack=at)
