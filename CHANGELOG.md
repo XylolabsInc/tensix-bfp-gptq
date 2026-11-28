@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- GPTQ exports using a configured `rms_norm_eps` other than the previous helper default can
+  produce different packed values from v0.3.0 with the same arguments. Tied quantized-head
+  exports also change the embedding values and emitted tensor keys. These corrected exports
+  are not bit-for-bit reproducible from v0.3.0; there is no legacy export option. Existing
+  v0.3.0 packed files remain readable.
+- Chat evaluation now uses contiguous response chunks, so evaluation inputs and results change.
+- TT-NN cache filenames now use hashes; caches under the old names are not reused.
+
 ## 0.3.0 (2026-11-27)
 
 ### Added
